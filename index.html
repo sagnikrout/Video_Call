@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P WebRTC Video Call</title>
+    <meta name="description" content="Client-side Peer-to-Peer WebRTC Video Calling Application powered by PeerJS">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- PeerJS CDN -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Main Header -->
+        <header class="app-header">
+            <h1 class="app-title">WebRTC P2P Video Call</h1>
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span id="connection-status">Initializing...</span>
+            </div>
+        </header>
+
+        <!-- Video Display Container -->
+        <div id="video-container">
+            <!-- Remote Video (Main Viewport) -->
+            <video id="remote-video" autoplay playsinline></video>
+            
+            <!-- Video Overlay Controls / Info -->
+            <div class="video-overlay-info" id="remote-video-placeholder">
+                <div class="placeholder-content">
+                    <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                    <p>Waiting for remote peer to connect...</p>
+                </div>
+            </div>
+
+            <!-- Local Video (Picture-in-Picture) -->
+            <video id="local-video" autoplay playsinline muted></video>
+        </div>
+
+        <!-- Control Panel -->
+        <div id="control-panel">
+            <!-- Local Peer ID Card -->
+            <div class="control-card id-card">
+                <label class="input-label">Your Peer ID</label>
+                <div class="id-display-wrapper">
+                    <span id="my-id-display">Generating ID...</span>
+                    <button id="copy-id-btn" title="Copy Peer ID to clipboard">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+            </div>
+
+            <!-- Remote Peer Connection Input Card -->
+            <div class="control-card connect-card">
+                <label for="remote-id-input" class="input-label">Remote Peer ID</label>
+                <div class="connect-input-group">
+                    <input type="text" id="remote-id-input" placeholder="Enter remote peer ID..." autocomplete="off" spellcheck="false">
+                    <button id="connect-btn" class="action-btn primary-btn">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                        Call
+                    </button>
+                    <button id="disconnect-btn" class="action-btn danger-btn" style="display: none;">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.68 13.31a16 16 0 0 0 3.41 3.41l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path>
+                            <line x1="2" y1="2" x2="22" y2="22"></line>
+                        </svg>
+                        End Call
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quality Control Panel -->
+            <div id="quality-controls" class="control-card quality-card">
+                <label class="input-label">Stream Quality</label>
+                <div class="quality-btn-group">
+                    <button id="btn-quality-high" class="quality-btn">High (1080p)</button>
+                    <button id="btn-quality-medium" class="quality-btn active">Medium (720p)</button>
+                    <button id="btn-quality-low" class="quality-btn">Low (480p)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application & QA Automation Scripts -->
+    <script src="app.js"></script>
+    <script src="debug.js"></script>
+    <script src="stress.js"></script>
+</body>
+</html>
