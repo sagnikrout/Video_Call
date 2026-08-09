@@ -55,7 +55,7 @@ body {
     flex-direction: column;
     min-height: 100vh;
     width: 100%;
-    max-width: 1300px;
+    max-width: 1350px;
     margin: 0 auto;
     padding: 1rem;
     gap: 1.25rem;
@@ -115,11 +115,11 @@ body {
 }
 
 /* ==========================================================================
-   Video Display Layout (Rectangular Side-by-Side on Desktop)
+   Video Display Layout (Auto-Wrapping Responsive Grid)
    ========================================================================== */
 #video-container {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.25rem;
     width: 100%;
     align-items: center;
@@ -197,11 +197,11 @@ body {
 }
 
 /* ==========================================================================
-   Control Panel & Card Components
+   Control Panel & Card Components (Auto-Wrapping Responsive Grid)
    ========================================================================== */
 #control-panel {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 1rem;
     width: 100%;
 }
@@ -217,6 +217,7 @@ body {
     gap: 0.5rem;
     box-shadow: var(--shadow-subtle);
     width: 100%;
+    min-width: 0; /* Prevents overflow inside flex/grid items */
 }
 
 .input-label {
@@ -258,6 +259,7 @@ body {
     outline: none;
     cursor: pointer;
     transition: border-color 0.2s ease;
+    text-overflow: ellipsis;
 }
 
 .device-select:focus {
@@ -316,6 +318,7 @@ body {
 
 #remote-id-input {
     flex: 1;
+    min-width: 0;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
@@ -498,15 +501,14 @@ body {
 }
 
 /* ==========================================================================
-   Responsive Media Queries for Mobile/Narrow Screens (<= 900px)
+   Responsive Media Queries for Mobile/Narrow Screens (<= 768px)
    ========================================================================== */
-@media (max-width: 900px) {
+@media (max-width: 768px) {
     #app-container {
         padding: 0.75rem;
         gap: 0.75rem;
     }
 
-    /* Video Container Mobile Layout: Prominent Remote View + Minimized Local View */
     #video-container {
         display: flex;
         flex-direction: column;
@@ -514,14 +516,12 @@ body {
         width: 100%;
     }
 
-    /* Remote Person View is a Rectangular View */
     #remote-video-tile {
         width: 100%;
         aspect-ratio: 16 / 9;
         max-height: 320px;
     }
 
-    /* Local Video View is Minimized below */
     #local-video-tile {
         width: 100%;
         max-width: 220px;
@@ -529,7 +529,6 @@ body {
         align-self: flex-end;
     }
 
-    /* Control Panel Cards Stack Down and Down (1 Column) for Easy Access */
     #control-panel {
         display: flex;
         flex-direction: column;
