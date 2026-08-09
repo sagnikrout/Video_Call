@@ -35,7 +35,8 @@
             <!-- Remote Video Tile -->
             <div class="video-tile" id="remote-video-tile">
                 <span class="video-label">Remote Peer</span>
-                <video id="remote-video" autoplay playsinline></video>
+                <video id="remote-video" autoplay playsinline style="display: none;"></video>
+                <canvas id="upscale-canvas"></canvas>
                 <!-- Video Overlay Placeholder Info -->
                 <div class="video-overlay-info" id="remote-video-placeholder">
                     <div class="placeholder-content">
@@ -146,6 +147,7 @@
     </div>
 
     <!-- Application & Diagnostics Scripts (Cache Busted) -->
+    <script src="upscaler.js?v=2.0.0"></script>
     <script src="app.js?v=2.0.0"></script>
     <script src="debug.js?v=2.0.0"></script>
     <script src="stress.js?v=2.0.0"></script>

@@ -472,12 +472,21 @@ function handleIncomingCall(call) {
 function setupCallEvents(call) {
     currentCall = call;
 
+    if (call.peerConnection) {
+        enforcePreferredCodecs(call.peerConnection);
+    }
+
     connectBtn.style.display = 'none';
     disconnectBtn.style.display = 'inline-flex';
 
     call.on('stream', (remoteStream) => {
         console.log('Remote MediaStream received.');
         remoteVideo.srcObject = remoteStream;
+        
+        const upscaleCanvas = document.getElementById('upscale-canvas');
+        if (typeof initUpscaler === 'function') {
+            initUpscaler(remoteVideo, upscaleCanvas);
+        }
         
         if (remoteVideoPlaceholder) {
             remoteVideoPlaceholder.style.opacity = '0';
@@ -629,6 +638,51 @@ async function executeQualityChange(qualityLevel) {
                 }
             }
         }
+    }
+}
+
+// ==========================================
+// Codec Enforcement (AV1 / VP9)
+// ==========================================
+
+function enforcePreferredCodecs(peerConnection) {
+    if (!peerConnection || typeof RTCRtpReceiver === 'undefined' || !('getCapabilities' in RTCRtpReceiver)) {
+        return;
+    }
+
+    try {
+        const capabilities = RTCRtpReceiver.getCapabilities('video');
+        if (!capabilities || !capabilities.codecs) return;
+
+        const codecs = capabilities.codecs;
+        const preferredCodecs = [];
+        const otherCodecs = [];
+
+        // Sort to prioritize AV1 -> VP9 -> H264
+        codecs.forEach(codec => {
+            const mimeType = codec.mimeType.toLowerCase();
+            if (mimeType.includes('video/av1')) preferredCodecs.push(codec);
+            else if (mimeType.includes('video/vp9')) preferredCodecs.push(codec);
+            else if (mimeType.includes('video/h264')) preferredCodecs.push(codec);
+            else otherCodecs.push(codec);
+        });
+
+        // Ensure we only set preferences if AV1 or VP9 actually exist in the browser
+        if (preferredCodecs.length === 0) return;
+
+        const sortedCodecs = [...preferredCodecs, ...otherCodecs];
+        const transceivers = peerConnection.getTransceivers();
+
+        transceivers.forEach(transceiver => {
+            if (transceiver.receiver && transceiver.receiver.track && transceiver.receiver.track.kind === 'video') {
+                if (typeof transceiver.setCodecPreferences === 'function') {
+                    transceiver.setCodecPreferences(sortedCodecs);
+                    console.log(`Video Codec Preferences Enforced. Top preferred: ${preferredCodecs[0].mimeType}`);
+                }
+            }
+        });
+    } catch (e) {
+        console.warn('Failed to enforce video codecs:', e);
     }
 }
 
