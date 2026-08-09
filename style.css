@@ -35,7 +35,7 @@
 
 body {
     font-family: var(--font-family);
-    background-color: var(--bg-base);
+    background: linear-gradient(135deg, #f6f8fb 0%, #e5edf5 100%);
     color: var(--text-main);
     line-height: 1.5;
     letter-spacing: -0.01em; /* Tight typography for scientific readability */
@@ -57,7 +57,7 @@ body {
     width: 100vw;
     height: 100vh;
     z-index: 0;
-    background-color: #000;
+    background-color: transparent;
 }
 
 #remote-video,
@@ -77,10 +77,10 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 2;
-    background: radial-gradient(circle at center, rgba(226, 232, 240, 0.8) 0%, rgba(203, 213, 225, 0.95) 100%);
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.4) 0%, rgba(240, 245, 250, 0.8) 100%);
     pointer-events: none;
     transition: opacity 0.4s ease;
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(20px);
 }
 
 .placeholder-content {
@@ -107,9 +107,9 @@ body {
     z-index: 10;
     border-radius: var(--radius-md);
     overflow: hidden;
-    box-shadow: var(--shadow-glass);
-    border: 1px solid var(--border-glass);
-    background: rgba(0,0,0,0.2);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.2);
+    background: #000;
 }
 
 #local-video {
@@ -223,6 +223,12 @@ body {
     font-family: 'JetBrains Mono', monospace;
     font-weight: 600;
     color: var(--text-main);
+    max-width: 90px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: middle;
 }
 
 #copy-id-btn {
@@ -272,12 +278,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
+    gap: 0.35rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--border-glass);
     background: rgba(255, 255, 255, 0.5);
     color: var(--text-main);
+    font-size: 0.75rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -307,6 +315,10 @@ body {
     color: var(--text-main);
     cursor: pointer;
     outline: none;
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2357534e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-position: right 0.5rem center;
@@ -354,10 +366,10 @@ body {
     pointer-events: auto;
     padding: 0.5rem 1rem;
     border-radius: var(--radius-pill);
-    background: var(--bg-glass-heavy);
+    background: rgba(28, 25, 23, 0.85); /* Dark premium glass for contrast */
     backdrop-filter: blur(12px);
-    border: 1px solid var(--border-glass);
-    color: var(--text-main);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
     font-size: 0.8rem;
     font-weight: 500;
     box-shadow: var(--shadow-glass);
@@ -366,10 +378,10 @@ body {
     animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.toast-item.toast-success { color: var(--success); }
-.toast-item.toast-error { color: var(--danger); }
-.toast-item.toast-warning { color: var(--warning); }
-.toast-item.toast-info { color: var(--primary); }
+.toast-item.toast-success { color: #34d399; }
+.toast-item.toast-error { color: #f87171; }
+.toast-item.toast-warning { color: #fbbf24; }
+.toast-item.toast-info { color: #60a5fa; }
 
 @keyframes toastIn {
     from { opacity: 0; transform: translateY(-10px) translateX(50%); }
