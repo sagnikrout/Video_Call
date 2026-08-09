@@ -31,35 +31,44 @@ function initUpscaler(videoElement, canvasElement) {
         }
     `;
 
-    // Fragment Shader: Contrast Adaptive Sharpening (CAS) style sharpening + interpolation
+    // Fragment Shader: Advanced Post-Processing (3x3 Laplacian Sharpening, Contrast, Gamma)
     const fsSource = `
         precision mediump float;
         uniform sampler2D u_image;
         uniform vec2 u_resolution;
         varying vec2 v_texCoord;
 
+        const float gamma = 1.05;
+        const float contrast = 1.15;
+
         void main() {
             vec2 texelSize = 1.0 / u_resolution;
             vec2 uv = v_texCoord;
 
-            // Sample surrounding pixels for sharpness/edge detection
+            // Sample surrounding pixels for 3x3 convolution matrix
             vec4 center = texture2D(u_image, uv);
             vec4 top    = texture2D(u_image, uv + vec2(0.0, -texelSize.y));
             vec4 bottom = texture2D(u_image, uv + vec2(0.0, texelSize.y));
             vec4 left   = texture2D(u_image, uv + vec2(-texelSize.x, 0.0));
             vec4 right  = texture2D(u_image, uv + vec2(texelSize.x, 0.0));
+            vec4 tl     = texture2D(u_image, uv + vec2(-texelSize.x, -texelSize.y));
+            vec4 tr     = texture2D(u_image, uv + vec2(texelSize.x, -texelSize.y));
+            vec4 bl     = texture2D(u_image, uv + vec2(-texelSize.x, texelSize.y));
+            vec4 br     = texture2D(u_image, uv + vec2(texelSize.x, texelSize.y));
 
-            // Basic Unsharp Mask / Sharpening kernel
-            //  0 -1  0
-            // -1  5 -1
-            //  0 -1  0
-            float sharpness = 0.5; // Adjustable parameter
-            
-            vec4 color = center * (1.0 + 4.0 * sharpness) 
-                       - (top + bottom + left + right) * sharpness;
+            // Laplacian edge enhancement (Unsharp Masking)
+            float sharpness = 1.0; 
+            vec4 edge = center * 8.0 - (top + bottom + left + right + tl + tr + bl + br);
+            vec4 color = center + (edge * sharpness * 0.15);
 
-            // Clamp to avoid artifacts
+            // Contrast enhancement curve
+            color.rgb = (color.rgb - 0.5) * contrast + 0.5;
+
+            // Gamma correction for color vibrancy
+            color.rgb = pow(abs(color.rgb), vec3(1.0 / gamma));
+
             gl_FragColor = clamp(color, 0.0, 1.0);
+            gl_FragColor.a = 1.0;
         }
     `;
 

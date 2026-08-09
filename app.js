@@ -152,7 +152,13 @@ async function requestMediaPermissions() {
                 height: { ideal: QUALITY_PRESETS.medium.height },
                 frameRate: { ideal: QUALITY_PRESETS.medium.frameRate }
             },
-            audio: true
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: { ideal: 2 },
+                sampleRate: { ideal: 48000 }
+            }
         });
 
         // User granted permission
@@ -729,38 +735,61 @@ function enforcePreferredCodecs(peerConnection) {
     }
 
     try {
-        const capabilities = RTCRtpReceiver.getCapabilities('video');
-        if (!capabilities || !capabilities.codecs) return;
+        // --- Video Codec Enforcement (AV1 -> VP9 -> H264) ---
+        const videoCapabilities = RTCRtpReceiver.getCapabilities('video');
+        let sortedVideoCodecs = null;
+        if (videoCapabilities && videoCapabilities.codecs) {
+            const preferredVideo = [];
+            const otherVideo = [];
+            videoCapabilities.codecs.forEach(codec => {
+                const mimeType = codec.mimeType.toLowerCase();
+                if (mimeType.includes('video/av1')) preferredVideo.push(codec);
+                else if (mimeType.includes('video/vp9')) preferredVideo.push(codec);
+                else if (mimeType.includes('video/h264')) preferredVideo.push(codec);
+                else otherVideo.push(codec);
+            });
+            if (preferredVideo.length > 0) {
+                sortedVideoCodecs = [...preferredVideo, ...otherVideo];
+            }
+        }
 
-        const codecs = capabilities.codecs;
-        const preferredCodecs = [];
-        const otherCodecs = [];
-
-        // Sort to prioritize AV1 -> VP9 -> H264
-        codecs.forEach(codec => {
-            const mimeType = codec.mimeType.toLowerCase();
-            if (mimeType.includes('video/av1')) preferredCodecs.push(codec);
-            else if (mimeType.includes('video/vp9')) preferredCodecs.push(codec);
-            else if (mimeType.includes('video/h264')) preferredCodecs.push(codec);
-            else otherCodecs.push(codec);
-        });
-
-        // Ensure we only set preferences if AV1 or VP9 actually exist in the browser
-        if (preferredCodecs.length === 0) return;
-
-        const sortedCodecs = [...preferredCodecs, ...otherCodecs];
-        const transceivers = peerConnection.getTransceivers();
-
-        transceivers.forEach(transceiver => {
-            if (transceiver.receiver && transceiver.receiver.track && transceiver.receiver.track.kind === 'video') {
-                if (typeof transceiver.setCodecPreferences === 'function') {
-                    transceiver.setCodecPreferences(sortedCodecs);
-                    console.log(`Video Codec Preferences Enforced. Top preferred: ${preferredCodecs[0].mimeType}`);
+        // --- Audio Codec Enforcement (Opus) ---
+        const audioCapabilities = RTCRtpReceiver.getCapabilities('audio');
+        let sortedAudioCodecs = null;
+        if (audioCapabilities && audioCapabilities.codecs) {
+            const preferredAudio = [];
+            const otherAudio = [];
+            audioCapabilities.codecs.forEach(codec => {
+                const mimeType = codec.mimeType.toLowerCase();
+                if (mimeType.includes('audio/opus')) {
+                    // Force stereo in SDP parameter if we can, but at least prioritize Opus
+                    preferredAudio.push(codec);
+                } else {
+                    otherAudio.push(codec);
                 }
+            });
+            if (preferredAudio.length > 0) {
+                sortedAudioCodecs = [...preferredAudio, ...otherAudio];
+            }
+        }
+
+        // --- Apply Preferences to Transceivers ---
+        const transceivers = peerConnection.getTransceivers();
+        transceivers.forEach(transceiver => {
+            if (!transceiver.receiver || !transceiver.receiver.track) return;
+            
+            if (transceiver.receiver.track.kind === 'video' && sortedVideoCodecs && typeof transceiver.setCodecPreferences === 'function') {
+                transceiver.setCodecPreferences(sortedVideoCodecs);
+                console.log(`Video Codec Preferences Enforced. Top preferred: ${sortedVideoCodecs[0].mimeType}`);
+            }
+            
+            if (transceiver.receiver.track.kind === 'audio' && sortedAudioCodecs && typeof transceiver.setCodecPreferences === 'function') {
+                transceiver.setCodecPreferences(sortedAudioCodecs);
+                console.log(`Audio Codec Preferences Enforced. Top preferred: ${sortedAudioCodecs[0].mimeType}`);
             }
         });
     } catch (e) {
-        console.warn('Failed to enforce video codecs:', e);
+        console.warn('Failed to enforce codecs:', e);
     }
 }
 
