@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=0.85, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>P2P WebRTC Video Call</title>
     <meta name="description" content="Client-side Peer-to-Peer WebRTC Video Calling Application powered by PeerJS">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="style.css">
+    <!-- Custom CSS (Cache Busted) -->
+    <link rel="stylesheet" href="style.css?v=2.0.0">
     <!-- PeerJS Library loaded via CDN -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
@@ -142,9 +145,9 @@
         <div id="toast-container"></div>
     </div>
 
-    <!-- Application & Diagnostics Scripts -->
-    <script src="app.js"></script>
-    <script src="debug.js"></script>
-    <script src="stress.js"></script>
+    <!-- Application & Diagnostics Scripts (Cache Busted) -->
+    <script src="app.js?v=2.0.0"></script>
+    <script src="debug.js?v=2.0.0"></script>
+    <script src="stress.js?v=2.0.0"></script>
 </body>
 </html>

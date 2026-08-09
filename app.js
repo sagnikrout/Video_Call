@@ -691,3 +691,23 @@ function fallbackCopy(text) {
     }
     document.body.removeChild(textArea);
 }
+
+// ==========================================
+// Clean Page Reload & Unload Resource Cleanup
+// ==========================================
+window.addEventListener('beforeunload', cleanupResources);
+window.addEventListener('pagehide', cleanupResources);
+
+function cleanupResources() {
+    if (localStream) {
+        localStream.getTracks().forEach(track => {
+            try { track.stop(); } catch (e) {}
+        });
+    }
+    if (currentCall) {
+        try { currentCall.close(); } catch (e) {}
+    }
+    if (peer) {
+        try { peer.destroy(); } catch (e) {}
+    }
+}
