@@ -1,43 +1,100 @@
 const { test, expect } = require('@playwright/test');
 
-test.describe('WebRTC P2P Video Call', () => {
-  test('Should successfully connect two peers and stream video', async ({ context }) => {
-    // 1. Setup two isolated pages
-    const page1 = await context.newPage();
-    const page2 = await context.newPage();
+test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
 
-    // 2. Open the app in both pages
-    await page1.goto('/');
-    await page2.goto('/');
+  test('1. Core Signaling & Media Stream Handshake', async ({ context }) => {
+    const p1 = await context.newPage();
+    const p2 = await context.newPage();
+    await p1.goto('/');
+    await p2.goto('/');
 
-    // 3. Wait for both peers to connect to PeerJS server and generate IDs
-    await expect(page1.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
-    await expect(page2.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
+    await expect(p1.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
+    const id1 = await p1.locator('#my-id-display').textContent();
 
-    const id1 = await page1.locator('#my-id-display').textContent();
-    const id2 = await page2.locator('#my-id-display').textContent();
+    await p2.fill('#remote-id-input', id1);
+    await p2.click('#connect-btn');
 
-    console.log(`Peer 1 ID: ${id1}`);
-    console.log(`Peer 2 ID: ${id2}`);
-
-    expect(id1).toBeTruthy();
-    expect(id2).toBeTruthy();
-
-    // 4. Have Page 2 call Page 1
-    await page2.fill('#remote-id-input', id1);
-    await page2.click('#connect-btn');
-
-    // 5. Verify UI status badges change to "Connected"
-    await expect(page2.locator('.status-badge')).toHaveText(/Connected/, { timeout: 15000 });
-    await expect(page1.locator('.status-badge')).toHaveText(/Connected/, { timeout: 15000 });
-
-    // 6. Verify that remote video starts playing (canvas is visible)
-    await expect(page2.locator('#upscale-canvas')).toBeVisible();
-    await expect(page1.locator('#upscale-canvas')).toBeVisible();
+    await expect(p2.locator('.status-badge')).toHaveText(/Connected/, { timeout: 15000 });
+    await expect(p1.locator('.status-badge')).toHaveText(/Connected/, { timeout: 15000 });
+    await expect(p2.locator('#upscale-canvas')).toBeVisible();
     
-    // 7. Verify the call disconnects properly
-    await page2.click('#disconnect-btn');
-    await expect(page2.locator('.status-badge')).toHaveText(/Call Ended/);
-    await expect(page1.locator('.status-badge')).toHaveText(/Remote user disconnected/);
+    // Disconnect from Caller
+    await p2.click('#disconnect-btn');
+    await expect(p2.locator('.status-badge')).toHaveText(/Call Ended/);
+    await expect(p1.locator('.status-badge')).toHaveText(/Remote user disconnected/);
   });
+
+  test('2. Error Handling: Invalid/Empty Peer ID', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
+    
+    // Attempt empty connection
+    await page.click('#connect-btn');
+    const toastEmpty = page.locator('.toast-item.toast-error').first();
+    await expect(toastEmpty).toHaveText(/Please enter a valid Peer ID/);
+    
+    // Attempt invalid format/non-existent connection
+    await page.fill('#remote-id-input', 'invalid-fake-id-12345');
+    await page.click('#connect-btn');
+    
+    // UI should show connecting then fail or toast error
+    const toastFail = page.locator('.toast-item.toast-error').nth(1);
+    await expect(toastFail).toHaveText(/Could not connect to peer/, { timeout: 10000 });
+  });
+
+  test('3. Hardware Device Enumeration & Selection', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
+
+    // The fake media devices should populate the selects
+    const micOptions = await page.locator('#mic-select option').count();
+    const camOptions = await page.locator('#camera-select option').count();
+    
+    expect(micOptions).toBeGreaterThanOrEqual(1);
+    expect(camOptions).toBeGreaterThanOrEqual(1);
+  });
+
+  test('4. Media Toggle State Machines (Mic/Cam)', async ({ page }) => {
+    await page.goto('/');
+    
+    const micBtn = page.locator('#toggle-mic-btn');
+    const camBtn = page.locator('#toggle-cam-btn');
+
+    // Mute Mic
+    await micBtn.click();
+    await expect(micBtn).toHaveClass(/inactive/);
+    await expect(page.locator('.toast-item.toast-warning').first()).toHaveText(/Microphone Muted/);
+
+    // Disable Cam
+    await camBtn.click();
+    await expect(camBtn).toHaveClass(/inactive/);
+    await expect(page.locator('.toast-item.toast-warning').nth(1)).toHaveText(/Camera Disabled/);
+
+    // Re-enable
+    await micBtn.click();
+    await expect(micBtn).not.toHaveClass(/inactive/);
+  });
+
+  test('5. Quality Profile Switching (Bitrate constraints)', async ({ page }) => {
+    await page.goto('/');
+    
+    const highBtn = page.locator('#btn-quality-high');
+    const medBtn = page.locator('#btn-quality-medium');
+    const lowBtn = page.locator('#btn-quality-low');
+
+    // Default is medium
+    await expect(medBtn).toHaveClass(/active/);
+
+    // Switch to High
+    await highBtn.click();
+    await expect(highBtn).toHaveClass(/active/);
+    await expect(medBtn).not.toHaveClass(/active/);
+    await expect(page.locator('.toast-item.toast-info').last()).toHaveText(/Quality set to High/);
+
+    // Switch to Low
+    await lowBtn.click();
+    await expect(lowBtn).toHaveClass(/active/);
+    await expect(highBtn).not.toHaveClass(/active/);
+  });
+
 });

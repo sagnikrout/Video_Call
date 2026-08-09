@@ -119,7 +119,7 @@ function initializePeer() {
     peer.on('error', (err) => {
         console.error('PeerJS signaling error:', err);
         if (err.type === 'peer-unavailable') {
-            alert(`Peer ID "${remoteIdInput.value.trim()}" is not available or offline.`);
+            showToast('Could not connect to peer', 'error');
             updateStatus('Peer Unavailable', 'disconnected');
         } else {
             showToast(`Signaling Error: ${err.type}`, 'error');
@@ -340,7 +340,7 @@ function setupEventListeners() {
     connectBtn.addEventListener('click', () => {
         const remoteId = remoteIdInput.value.trim();
         if (!remoteId) {
-            alert('Please enter a valid destination Peer ID.');
+            showToast('Please enter a valid Peer ID.', 'error');
             return;
         }
         if (peer && remoteId === peer.id) {
@@ -396,7 +396,7 @@ function handleMicrophoneToggle() {
             </svg>
             Mic Muted
         `;
-        showToast('Microphone muted', 'info');
+        showToast('Microphone Muted', 'warning');
     } else {
         toggleMicBtn.classList.remove('inactive');
         toggleMicBtn.innerHTML = `
@@ -430,7 +430,7 @@ function handleCameraToggle() {
             </svg>
             Cam Off
         `;
-        showToast('Camera video disabled', 'info');
+        showToast('Camera Disabled', 'warning');
     } else {
         toggleCamBtn.classList.remove('inactive');
         toggleCamBtn.innerHTML = `
@@ -639,6 +639,7 @@ async function executeQualityChange(qualityLevel) {
             }
         }
     }
+    showToast(`Quality set to ${qualityLevel.charAt(0).toUpperCase() + qualityLevel.slice(1)}`, 'info');
 }
 
 // ==========================================
