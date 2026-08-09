@@ -360,6 +360,99 @@ body {
     box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
 }
 
+/* Media Stream Toggle Buttons (Mic / Camera) */
+.media-toggle-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    margin-top: 0.25rem;
+}
+
+.toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    padding: 0.45rem 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--primary);
+}
+
+.toggle-btn.muted {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+/* Toast Notifications Container & Items */
+#toast-container {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.toast-item {
+    pointer-events: auto;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    font-size: 0.85rem;
+    font-weight: 500;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    backdrop-filter: blur(8px);
+}
+
+.toast-item.toast-success {
+    border-left: 4px solid var(--success);
+}
+
+.toast-item.toast-error {
+    border-left: 4px solid var(--danger);
+}
+
+.toast-item.toast-warning {
+    border-left: 4px solid var(--warning);
+}
+
+.toast-item.toast-info {
+    border-left: 4px solid var(--primary);
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
 /* Responsive Styles for narrow screens < 768px */
 @media (max-width: 768px) {
     #app-container {
@@ -388,5 +481,12 @@ body {
         flex-direction: column;
         align-items: flex-start;
         gap: 0.5rem;
+    }
+
+    #toast-container {
+        top: 0.5rem;
+        right: 0.5rem;
+        left: 0.5rem;
+        align-items: center;
     }
 }

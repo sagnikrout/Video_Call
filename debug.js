@@ -25,7 +25,9 @@
         'quality-controls',
         'btn-quality-high',
         'btn-quality-medium',
-        'btn-quality-low'
+        'btn-quality-low',
+        'mic-toggle-btn',
+        'cam-toggle-btn'
     ];
 
     const BITRATE_LIMITS_KBPS = {
@@ -51,7 +53,7 @@
         REQUIRED_DOM_IDS.forEach((id) => {
             const el = document.getElementById(id);
             if (el) {
-                console.log(`✓ Element #${id} found (${el.tagName})`);
+                console.log(`✓ Element #${id} found (<${el.tagName.toLowerCase()}>)`);
             } else {
                 console.error(`✗ MISSING MANDATED DOM ELEMENT: #${id}`);
                 allValid = false;
@@ -59,7 +61,7 @@
         });
 
         if (allValid) {
-            console.log('%c✓ All 15 required DOM elements verified successfully.', 'color: #10b981; font-weight: bold;');
+            console.log(`%c✓ All ${REQUIRED_DOM_IDS.length} required DOM elements verified successfully.`, 'color: #10b981; font-weight: bold;');
         } else {
             console.warn('%c⚠ Missing DOM elements detected. Check markup.', 'color: #ef4444; font-weight: bold;');
         }

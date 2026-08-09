@@ -1,5 +1,5 @@
 /**
- * Peer-to-Peer WebRTC Video Calling Application
+ * Peer-to-Peer WebRTC Video Calling Application - Production Hardened
  * Built with HTML5, CSS3, Vanilla JavaScript, WebRTC, and PeerJS.
  */
 
@@ -12,6 +12,13 @@ let localStream = null;         // Local MediaStream (Camera & Microphone)
 let currentQuality = 'medium';  // Default stream quality ('high' | 'medium' | 'low')
 let remotePeerId = '';          // Stores the remote peer ID for call management / reconnection
 let reconnectTimeoutId = null;  // Timer reference for ICE auto-reconnect attempts
+
+// Mutex / Queue to prevent concurrent setParameters calls and InvalidStateError race conditions
+let qualityChangeQueue = Promise.resolve();
+
+// Audio/Video Track Mute States
+let isMicMuted = false;
+let isCamOff = false;
 
 // Quality Preset Definitions (Resolution, Frame Rate, Video Bitrate, Audio Bitrate)
 const QUALITY_PRESETS = {
@@ -54,6 +61,10 @@ const btnQualityHigh = document.getElementById('btn-quality-high');
 const btnQualityMedium = document.getElementById('btn-quality-medium');
 const btnQualityLow = document.getElementById('btn-quality-low');
 
+const micToggleBtn = document.getElementById('mic-toggle-btn');
+const camToggleBtn = document.getElementById('cam-toggle-btn');
+const toastContainer = document.getElementById('toast-container');
+
 // ==========================================
 // Initialization & Hardware Permission Logic
 // ==========================================
@@ -71,24 +82,34 @@ async function initializeApplication() {
 }
 
 /**
- * Instantiates the PeerJS object and attaches signaling lifecycle handlers.
+ * Instantiates the PeerJS object with public Google STUN servers for robust NAT traversal.
  */
 function initializePeer() {
     updateStatus('Connecting to signaling server...', 'warning');
     
-    // Connect to PeerJS cloud signaling server
-    peer = new Peer();
+    // Configure PeerJS with reliable public STUN servers for NAT/Firewall traversal
+    peer = new Peer({
+        config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+        }
+    });
 
     // Event 1: Assigned a unique Peer ID by the signaling server
     peer.on('open', (id) => {
         console.log('PeerJS server connection established. Local ID:', id);
         myIdDisplay.textContent = id;
         updateStatus('Awaiting Connection', 'warning');
+        showToast('Connected to signaling server', 'success');
     });
 
     // Event 2: Listen for incoming calls from remote peers
     peer.on('call', (incomingCall) => {
         console.log('Incoming call received from:', incomingCall.peer);
+        showToast(`Incoming call from ${incomingCall.peer.substring(0, 8)}...`, 'info');
         handleIncomingCall(incomingCall);
     });
 
@@ -96,6 +117,7 @@ function initializePeer() {
     peer.on('disconnected', () => {
         console.warn('Disconnected from PeerJS signaling server. Attempting reconnection...');
         updateStatus('Reconnecting to server...', 'warning');
+        showToast('Signaling server disconnected. Reconnecting...', 'warning');
         // Re-establish connection to the signaling server
         peer.reconnect();
     });
@@ -104,9 +126,10 @@ function initializePeer() {
     peer.on('error', (err) => {
         console.error('PeerJS error encountered:', err);
         if (err.type === 'peer-unavailable') {
-            alert(`Peer ID "${remoteIdInput.value.trim()}" is not available or offline.`);
+            showToast(`Peer ID "${remoteIdInput.value.trim()}" is not available or offline.`, 'error');
             updateStatus('Peer Unavailable', 'disconnected');
         } else {
+            showToast(`Signaling Error: ${err.type}`, 'error');
             updateStatus(`Error: ${err.type}`, 'disconnected');
         }
     });
@@ -139,16 +162,16 @@ async function requestMediaPermissions() {
         
         // Scenario: User denies permission (NotAllowedError)
         if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-            alert('Camera and microphone permissions were denied. Please grant permissions in your browser address bar to use video calling.');
+            showToast('Camera and microphone permissions were denied.', 'error');
             updateStatus('Permission Denied', 'disconnected');
         }
         // Scenario: Hardware missing (NotFoundError)
         else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-            alert('No camera or microphone was detected on your device.');
+            showToast('No camera or microphone was detected on your device.', 'error');
             updateStatus('Hardware Not Found', 'disconnected');
         }
         else {
-            alert(`Unable to access camera/microphone: ${error.message}`);
+            showToast(`Unable to access camera/microphone: ${error.message}`, 'error');
             updateStatus('Media Error', 'disconnected');
         }
     }
@@ -158,15 +181,11 @@ async function requestMediaPermissions() {
 // Event Listeners & Control Handlers
 // ==========================================
 function setupEventListeners() {
-    // Copy Peer ID to clipboard
+    // Copy Peer ID to clipboard with robust fallback
     copyIdBtn.addEventListener('click', () => {
         const idText = myIdDisplay.textContent;
         if (idText && idText !== 'Generating ID...') {
-            navigator.clipboard.writeText(idText).then(() => {
-                const originalText = copyIdBtn.innerHTML;
-                copyIdBtn.innerHTML = 'Copied!';
-                setTimeout(() => { copyIdBtn.innerHTML = originalText; }, 1800);
-            }).catch(err => console.error('Failed to copy ID:', err));
+            copyTextToClipboard(idText);
         }
     });
 
@@ -174,11 +193,11 @@ function setupEventListeners() {
     connectBtn.addEventListener('click', () => {
         const remoteId = remoteIdInput.value.trim();
         if (!remoteId) {
-            alert('Please enter a valid remote Peer ID to call.');
+            showToast('Please enter a valid remote Peer ID to call.', 'warning');
             return;
         }
         if (peer && remoteId === peer.id) {
-            alert('You cannot call your own Peer ID!');
+            showToast('You cannot call your own Peer ID!', 'warning');
             return;
         }
         initiateCall(remoteId);
@@ -193,6 +212,79 @@ function setupEventListeners() {
     btnQualityHigh.addEventListener('click', () => setMediaQuality('high'));
     btnQualityMedium.addEventListener('click', () => setMediaQuality('medium'));
     btnQualityLow.addEventListener('click', () => setMediaQuality('low'));
+
+    // Audio & Video Mute Toggle Buttons
+    if (micToggleBtn) {
+        micToggleBtn.addEventListener('click', toggleMic);
+    }
+    if (camToggleBtn) {
+        camToggleBtn.addEventListener('click', toggleCamera);
+    }
+}
+
+/**
+ * Toggles local audio microphone track state (Mute / Unmute).
+ */
+function toggleMic() {
+    if (!localStream || localStream.getAudioTracks().length === 0) return;
+    const audioTrack = localStream.getAudioTracks()[0];
+    isMicMuted = !isMicMuted;
+    audioTrack.enabled = !isMicMuted;
+
+    if (isMicMuted) {
+        micToggleBtn.classList.add('muted');
+        micToggleBtn.innerHTML = `
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg> Mic Off
+        `;
+        showToast('Microphone muted', 'info');
+    } else {
+        micToggleBtn.classList.remove('muted');
+        micToggleBtn.innerHTML = `
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg> Mic On
+        `;
+        showToast('Microphone unmuted', 'info');
+    }
+}
+
+/**
+ * Toggles local camera video track state (Video On / Off).
+ */
+function toggleCamera() {
+    if (!localStream || localStream.getVideoTracks().length === 0) return;
+    const videoTrack = localStream.getVideoTracks()[0];
+    isCamOff = !isCamOff;
+    videoTrack.enabled = !isCamOff;
+
+    if (isCamOff) {
+        camToggleBtn.classList.add('muted');
+        camToggleBtn.innerHTML = `
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg> Cam Off
+        `;
+        showToast('Camera video disabled', 'info');
+    } else {
+        camToggleBtn.classList.remove('muted');
+        camToggleBtn.innerHTML = `
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg> Cam On
+        `;
+        showToast('Camera video enabled', 'info');
+    }
 }
 
 // ==========================================
@@ -204,7 +296,7 @@ function setupEventListeners() {
  */
 function initiateCall(remoteId) {
     if (!localStream) {
-        alert('Local media stream is not ready. Please enable camera and microphone access.');
+        showToast('Local media stream is not ready. Please enable camera access.', 'warning');
         return;
     }
 
@@ -220,10 +312,6 @@ function initiateCall(remoteId) {
  * Incoming call scenario: Answers incoming call with local stream and hooks into event listeners.
  */
 function handleIncomingCall(call) {
-    if (!localStream) {
-        console.warn('Answering call without local stream.');
-    }
-
     remotePeerId = call.peer;
     remoteIdInput.value = call.peer;
 
@@ -251,6 +339,7 @@ function setupCallEvents(call) {
             setTimeout(() => { remoteVideoPlaceholder.style.display = 'none'; }, 400);
         }
         updateStatus('Connected', 'connected');
+        showToast('Call connected!', 'success');
 
         // Re-apply current quality bitrate parameters to newly established WebRTC senders
         setMediaQuality(currentQuality);
@@ -259,12 +348,14 @@ function setupCallEvents(call) {
     // Event: Scenario - Remote user closes browser tab or terminates call
     call.on('close', () => {
         console.log('Call close event received.');
+        showToast('Remote user disconnected', 'warning');
         resetCallUI('Remote user disconnected');
     });
 
     // Event: Call error handling
     call.on('error', (err) => {
         console.error('Call error:', err);
+        showToast(`Call error: ${err.message || err}`, 'error');
         resetCallUI('Call Error');
     });
 
@@ -284,6 +375,7 @@ function monitorIceConnectionState(peerConnection) {
 
         if (iceState === 'disconnected' || iceState === 'failed') {
             updateStatus('Reconnecting...', 'warning');
+            showToast('Network unstable. Reconnecting call...', 'warning');
 
             // Clear any existing reconnect timer
             if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
@@ -309,6 +401,7 @@ function hangUpCall(statusText = 'Call Ended') {
     if (currentCall) {
         currentCall.close();
     }
+    showToast('Call disconnected', 'info');
     resetCallUI(statusText);
 }
 
@@ -334,29 +427,34 @@ function resetCallUI(statusMessage) {
 }
 
 // ==========================================
-// Dynamic Quality & Bandwidth Manipulation
+// Dynamic Quality & Bandwidth Manipulation (Mutex-Guarded)
 // ==========================================
 
 /**
  * Applies dynamic resolution and bitrate constraints during an active call without dropping connection.
- * 
- * Extensive Inline Explanation of RTCRtpSender Parameter Manipulation:
- * ------------------------------------------------------------------
- * 1. An RTCRtpSender inspects and controls the encoding and transmission of a single media track
- *    (video or audio) attached to an RTCPeerConnection.
- * 2. Calling sender.getParameters() fetches an RTCRtpSendParameters object which includes `encodings`.
- * 3. The `encodings` array contains RTCRtpEncodingParameters objects representing individual stream
- *    layers (e.g. maxBitrate, maxFramerate, scaleResolutionDownBy).
- * 4. Modifying `encodings[0].maxBitrate` sets the maximum allowable bandwidth cap (in bits per second)
- *    enforced dynamically by the browser's WebRTC congestion controller and rate control engine.
- * 5. Calling sender.setParameters(parameters) applies these new bitrate limitations immediately to the
- *    active SRTP/DTLS stream without needing to renegotiate the SDP offer/answer session or renegotiate ICE.
+ * Uses an asynchronous mutex chain (qualityChangeQueue) to prevent concurrent setParameters calls.
  * 
  * @param {string} qualityLevel - 'high' | 'medium' | 'low'
  */
-async function setMediaQuality(qualityLevel) {
-    if (!QUALITY_PRESETS[qualityLevel]) return;
-    
+function setMediaQuality(qualityLevel) {
+    if (!QUALITY_PRESETS[qualityLevel]) return Promise.resolve();
+
+    // Chain quality modifications onto global queue to prevent concurrent setParameters race conditions
+    qualityChangeQueue = qualityChangeQueue.then(async () => {
+        try {
+            await executeQualityChange(qualityLevel);
+        } catch (err) {
+            console.error('Error executing quality change:', err);
+        }
+    });
+
+    return qualityChangeQueue;
+}
+
+/**
+ * Internal worker function performing hardware track constraint updates & RTCRtpSender bitrate changes.
+ */
+async function executeQualityChange(qualityLevel) {
     currentQuality = qualityLevel;
     const preset = QUALITY_PRESETS[qualityLevel];
 
@@ -394,15 +492,12 @@ async function setMediaQuality(qualityLevel) {
             // Video Sender Bandwidth Control
             if (sender.track.kind === 'video') {
                 try {
-                    // Fetch current RTCRtpSendParameters
                     const parameters = sender.getParameters();
                     if (!parameters.encodings || parameters.encodings.length === 0) {
                         parameters.encodings = [{}];
                     }
-                    // Assign new maxBitrate parameter in bits per second
                     parameters.encodings[0].maxBitrate = preset.videoMaxBitrate;
                     
-                    // Commit encodings parameters to live RTCRtpSender
                     await sender.setParameters(parameters);
                     console.log(`Video RTCRtpSender maxBitrate updated to: ${preset.videoMaxBitrate} bps`);
                 } catch (err) {
@@ -413,15 +508,12 @@ async function setMediaQuality(qualityLevel) {
             // Audio Sender Bandwidth Control
             if (sender.track.kind === 'audio') {
                 try {
-                    // Fetch current RTCRtpSendParameters
                     const parameters = sender.getParameters();
                     if (!parameters.encodings || parameters.encodings.length === 0) {
                         parameters.encodings = [{}];
                     }
-                    // Assign new maxBitrate parameter in bits per second
                     parameters.encodings[0].maxBitrate = preset.audioMaxBitrate;
 
-                    // Commit encodings parameters to live RTCRtpSender
                     await sender.setParameters(parameters);
                     console.log(`Audio RTCRtpSender maxBitrate updated to: ${preset.audioMaxBitrate} bps`);
                 } catch (err) {
@@ -433,8 +525,9 @@ async function setMediaQuality(qualityLevel) {
 }
 
 // ==========================================
-// Helper Utility Functions
+// Helper Utility & UI Toast Functions
 // ==========================================
+
 function updateStatus(message, state = 'warning') {
     if (connectionStatus) {
         connectionStatus.textContent = message;
@@ -444,4 +537,57 @@ function updateStatus(message, state = 'warning') {
         if (state === 'connected') statusBadge.classList.add('connected');
         if (state === 'disconnected') statusBadge.classList.add('disconnected');
     }
+}
+
+/**
+ * Displays a sleek non-blocking toast notification in the UI.
+ * @param {string} message 
+ * @param {string} type - 'success' | 'error' | 'warning' | 'info'
+ */
+function showToast(message, type = 'info') {
+    if (!toastContainer) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast-item toast-${type}`;
+    toast.innerHTML = `<span>${message}</span>`;
+
+    toastContainer.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-10px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, 3500);
+}
+
+/**
+ * Copies text to clipboard with navigator.clipboard and execCommand fallback.
+ */
+function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Peer ID copied to clipboard!', 'success');
+        }).catch(() => fallbackCopyText(text));
+    } else {
+        fallbackCopyText(text);
+    }
+}
+
+function fallbackCopyText(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+        document.execCommand('copy');
+        showToast('Peer ID copied to clipboard!', 'success');
+    } catch (err) {
+        showToast('Failed to copy Peer ID', 'error');
+    }
+    document.body.removeChild(textArea);
 }
