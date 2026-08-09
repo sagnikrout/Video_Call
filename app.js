@@ -476,27 +476,57 @@ function handleCameraToggle() {
 // Call Lifecycle Scenarios
 // ==========================================
 
+/**
+ * Initiates an outgoing WebRTC call to a specified remote peer.
+ * Encapsulates the call logic in a try/catch block to prevent silent failures.
+ * 
+ * @param {string} remoteId - The PeerJS ID of the destination client.
+ */
 function initiateCall(remoteId) {
     if (!localStream) {
-        alert('Local stream is not ready. Please grant camera and microphone access.');
+        showToast('Local stream is not ready. Please grant camera and microphone access.', 'error');
         return;
     }
 
     remotePeerId = remoteId;
     updateStatus('Connecting...', 'warning');
-
     console.log(`Initiating outgoing call to peer: ${remoteId}`);
-    const call = peer.call(remoteId, localStream);
-    setupCallEvents(call);
+
+    try {
+        const call = peer.call(remoteId, localStream);
+        if (!call) throw new Error("PeerJS failed to create the call object.");
+        setupCallEvents(call);
+    } catch (e) {
+        console.error("Failed to initiate call:", e);
+        showToast("Error initiating call. Ensure the remote ID is online.", "error");
+        updateStatus("Call Failed", "disconnected");
+    }
 }
 
+/**
+ * Handles an incoming WebRTC call from a remote peer.
+ * Automatically answers the call with the local media stream.
+ * 
+ * @param {MediaConnection} call - The incoming PeerJS MediaConnection object.
+ */
 function handleIncomingCall(call) {
-    remotePeerId = call.peer;
-    remoteIdInput.value = call.peer;
-    call.answer(localStream);
-    setupCallEvents(call);
+    try {
+        remotePeerId = call.peer;
+        remoteIdInput.value = call.peer;
+        call.answer(localStream);
+        setupCallEvents(call);
+    } catch (e) {
+        console.error("Failed to answer incoming call:", e);
+        showToast("Error answering call.", "error");
+    }
 }
 
+/**
+ * Binds lifecycle event listeners (stream, error, close) to a PeerJS MediaConnection.
+ * Also invokes state-of-the-art codec manipulation on the underlying RTCPeerConnection.
+ * 
+ * @param {MediaConnection} call - The active PeerJS MediaConnection.
+ */
 function setupCallEvents(call) {
     currentCall = call;
 
