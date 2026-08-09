@@ -365,6 +365,91 @@ body {
 .quality-btn.active { background: white; color: var(--primary); }
 
 /* ==========================================================================
+   Info Panel & Network Telemetry
+   ========================================================================== */
+.info-panel {
+    position: fixed;
+    top: 5rem;
+    left: 1.5rem;
+    width: 320px;
+    background: var(--bg-glass-heavy);
+    backdrop-filter: blur(24px);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-glass);
+    padding: 1.5rem;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+.info-panel.hidden {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+    pointer-events: none;
+}
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.panel-header h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+.close-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: color 0.2s;
+}
+.close-btn:hover { color: var(--danger); }
+
+.panel-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.panel-section label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+.stat-box {
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.stat-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+.stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+/* ==========================================================================
    Toast Notifications
    ========================================================================== */
 #toast-container {

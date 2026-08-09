@@ -16,28 +16,27 @@ let reconnectTimeoutId = null;  // Timer reference for ICE auto-reconnection att
 // Asynchronous mutex chain to queue quality modifications and prevent concurrent setParameters calls
 let qualityChangeQueue = Promise.resolve();
 
-// Exact Quality Preset Parameter Definitions
 const QUALITY_PRESETS = {
     high: {
-        width: 1920,
-        height: 1080,
-        frameRate: 30,
-        videoMaxBitrate: 4000000, // 4.0 Mbps (4,000,000 bits/sec)
-        audioMaxBitrate: 128000   // 128 kbps (128,000 bits/sec)
+        width: 2560,
+        height: 1440,
+        frameRate: 60,
+        videoMaxBitrate: 8000000, // 8.0 Mbps
+        audioMaxBitrate: 256000   // 256 kbps
     },
     medium: {
+        width: 1920,
+        height: 1080,
+        frameRate: 60,
+        videoMaxBitrate: 4000000, // 4.0 Mbps
+        audioMaxBitrate: 128000   // 128 kbps
+    },
+    low: {
         width: 1280,
         height: 720,
         frameRate: 30,
-        videoMaxBitrate: 1500000, // 1.5 Mbps (1,500,000 bits/sec)
-        audioMaxBitrate: 64000    // 64 kbps (64,000 bits/sec)
-    },
-    low: {
-        width: 854,
-        height: 480,
-        frameRate: 15,
-        videoMaxBitrate: 500000,  // 500 kbps (500,000 bits/sec)
-        audioMaxBitrate: 32000    // 32 kbps (32,000 bits/sec)
+        videoMaxBitrate: 1500000, // 1.5 Mbps
+        audioMaxBitrate: 64000    // 64 kbps
     }
 };
 
@@ -62,6 +61,20 @@ const btnQualityLow = document.getElementById('btn-quality-low');
 const micSelect = document.getElementById('mic-select');
 const cameraSelect = document.getElementById('camera-select');
 const toastContainer = document.getElementById('toast-container');
+
+const infoBtn = document.getElementById('info-btn');
+const infoPanel = document.getElementById('info-panel');
+const closeInfoBtn = document.getElementById('close-info-btn');
+const statUpload = document.getElementById('stat-upload');
+const statDownload = document.getElementById('stat-download');
+
+// ==========================================
+// Telemetry Globals
+// ==========================================
+let telemetryIntervalId = null;
+let lastBytesSent = 0;
+let lastBytesReceived = 0;
+let lastTimestamp = 0;
 
 // ==========================================
 // Initialization & Hardware Permission Logic
@@ -330,6 +343,15 @@ async function switchMicrophone(deviceId) {
 // ==========================================
 
 function setupEventListeners() {
+    if (infoBtn && infoPanel && closeInfoBtn) {
+        infoBtn.addEventListener('click', () => {
+            infoPanel.classList.remove('hidden');
+        });
+        closeInfoBtn.addEventListener('click', () => {
+            infoPanel.classList.add('hidden');
+        });
+    }
+
     copyIdBtn.addEventListener('click', () => {
         const idText = myIdDisplay.textContent;
         if (idText && idText !== 'Generating ID...') {
@@ -531,6 +553,7 @@ function monitorIceConnectionState(peerConnection) {
         } else if (iceState === 'connected' || iceState === 'completed') {
             if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
             updateStatus('Connected', 'connected');
+            startTelemetry();
         }
     };
 }
@@ -539,6 +562,7 @@ function hangUpCall(statusText = 'Call Ended') {
     if (currentCall) {
         currentCall.close();
     }
+    stopTelemetry();
     resetCallUI(statusText);
 }
 
@@ -555,7 +579,60 @@ function resetCallUI(statusMessage) {
     connectBtn.style.display = 'inline-flex';
     disconnectBtn.style.display = 'none';
 
+    stopTelemetry();
     updateStatus(statusMessage || 'Awaiting Connection', statusMessage === 'Connected' ? 'connected' : 'warning');
+}
+
+// ==========================================
+// Telemetry (Bandwidth Monitoring)
+// ==========================================
+
+function startTelemetry() {
+    if (telemetryIntervalId) clearInterval(telemetryIntervalId);
+    lastBytesSent = 0;
+    lastBytesReceived = 0;
+    lastTimestamp = performance.now();
+
+    telemetryIntervalId = setInterval(async () => {
+        if (!currentCall || !currentCall.peerConnection) return;
+        
+        try {
+            const stats = await currentCall.peerConnection.getStats(null);
+            let bytesSent = 0;
+            let bytesReceived = 0;
+            
+            stats.forEach(report => {
+                if (report.type === 'outbound-rtp' && report.bytesSent) bytesSent += report.bytesSent;
+                if (report.type === 'inbound-rtp' && report.bytesReceived) bytesReceived += report.bytesReceived;
+            });
+            
+            const now = performance.now();
+            const timeDelta = (now - lastTimestamp) / 1000; // seconds
+            
+            if (timeDelta > 0) {
+                const uploadBps = ((bytesSent - lastBytesSent) * 8) / timeDelta;
+                const downloadBps = ((bytesReceived - lastBytesReceived) * 8) / timeDelta;
+                
+                if (statUpload) statUpload.textContent = (uploadBps / 1000000).toFixed(2) + ' Mbps';
+                if (statDownload) statDownload.textContent = (downloadBps / 1000000).toFixed(2) + ' Mbps';
+            }
+            
+            lastBytesSent = bytesSent;
+            lastBytesReceived = bytesReceived;
+            lastTimestamp = now;
+        } catch (e) {
+            console.error('Stats polling error', e);
+        }
+    }, 1000);
+}
+
+function stopTelemetry() {
+    if (telemetryIntervalId) {
+        clearInterval(telemetryIntervalId);
+        telemetryIntervalId = null;
+    }
+    if (statUpload) statUpload.textContent = '0.00 Mbps';
+    if (statDownload) statDownload.textContent = '0.00 Mbps';
 }
 
 // ==========================================

@@ -11,6 +11,7 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await expect(p1.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
     const id1 = await p1.locator('#my-id-display').textContent();
 
+    await p2.click('#info-btn');
     await p2.fill('#remote-id-input', id1);
     await p2.click('#connect-btn');
 
@@ -19,6 +20,7 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await expect(p2.locator('#upscale-canvas')).toBeVisible();
     
     // Disconnect from Caller
+    await p2.click('#info-btn');
     await p2.click('#disconnect-btn');
     await expect(p2.locator('.status-badge')).toHaveText(/Call Ended/);
     await expect(p1.locator('.status-badge')).toHaveText(/Remote user disconnected/);
@@ -29,6 +31,7 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await expect(page.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
     
     // Attempt empty connection
+    await page.click('#info-btn');
     await page.click('#connect-btn');
     const toastEmpty = page.locator('.toast-item.toast-error').first();
     await expect(toastEmpty).toHaveText(/Please enter a valid Peer ID/);

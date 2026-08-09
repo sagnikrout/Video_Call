@@ -6,8 +6,8 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>P2P WebRTC Video Call</title>
-    <meta name="description" content="Client-side Peer-to-Peer WebRTC Video Calling Application powered by PeerJS">
+    <title>Darpan WebRTC</title>
+    <meta name="description" content="Darpan Client-side Peer-to-Peer WebRTC Video Calling Application">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,10 @@
         
         <!-- Header & Status Bar -->
         <header class="app-header">
-            <h1 class="app-title">WebRTC P2P Video Call</h1>
+            <h1 class="app-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                Darpan
+            </h1>
             <div class="status-badge">
                 <span class="status-dot"></span>
                 <span id="connection-status">Initializing...</span>
@@ -52,19 +55,11 @@
 
         <!-- Floating Minimalist Dock -->
         <div id="control-panel" class="floating-dock">
-            <!-- Connection Group -->
-            <div class="dock-group connection-group">
-                <div class="id-pill">
-                    <span id="my-id-display">Generating...</span>
-                    <button id="copy-id-btn" title="Copy ID">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                    </button>
-                </div>
-                <div class="connect-pill">
-                    <input type="text" id="remote-id-input" placeholder="Remote ID..." autocomplete="off">
-                    <button id="connect-btn" class="action-btn primary-btn">Call</button>
-                    <button id="disconnect-btn" class="action-btn danger-btn" style="display: none;">End</button>
-                </div>
+            <!-- Info Toggle -->
+            <div class="dock-group">
+                <button id="info-btn" class="toggle-btn" title="Connection Info">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                </button>
             </div>
 
             <!-- Media Toggles & Selection -->
@@ -97,9 +92,50 @@
             <!-- Settings Group -->
             <div class="dock-group settings-group">
                 <div class="quality-pills">
-                    <button id="btn-quality-high" class="quality-btn">1080p</button>
-                    <button id="btn-quality-medium" class="quality-btn active">720p</button>
-                    <button id="btn-quality-low" class="quality-btn">480p</button>
+                    <button id="btn-quality-high" class="quality-btn">1440p</button>
+                    <button id="btn-quality-medium" class="quality-btn active">1080p</button>
+                    <button id="btn-quality-low" class="quality-btn">720p</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info & Connection Panel (Hidden by default) -->
+        <div id="info-panel" class="info-panel hidden">
+            <div class="panel-header">
+                <h2>Connection Details</h2>
+                <button id="close-info-btn" class="close-btn">&times;</button>
+            </div>
+            
+            <div class="panel-section">
+                <label>Your Darpan ID</label>
+                <div class="id-pill">
+                    <span id="my-id-display">Generating...</span>
+                    <button id="copy-id-btn" title="Copy ID">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <label>Remote Peer ID</label>
+                <div class="connect-pill">
+                    <input type="text" id="remote-id-input" placeholder="Remote ID..." autocomplete="off">
+                    <button id="connect-btn" class="action-btn primary-btn">Call</button>
+                    <button id="disconnect-btn" class="action-btn danger-btn" style="display: none;">End</button>
+                </div>
+            </div>
+
+            <div class="panel-section telemetry-section">
+                <label>Live Network Stats</label>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <span class="stat-label">Upload</span>
+                        <span class="stat-value" id="stat-upload">0.00 Mbps</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Download</span>
+                        <span class="stat-value" id="stat-download">0.00 Mbps</span>
+                    </div>
                 </div>
             </div>
         </div>
