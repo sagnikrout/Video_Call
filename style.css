@@ -51,14 +51,15 @@ body {
    Main App Container Layout
    ========================================================================== */
 #app-container {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
     width: 100vw;
-    max-width: 1600px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 1rem;
     gap: 1rem;
+    justify-content: space-between;
 }
 
 /* App Header & Status Bar */
@@ -115,13 +116,23 @@ body {
 }
 
 /* ==========================================================================
-   Video Container & Video Viewport Elements
+   Video Display Grid (Two Square Tiles: Side-by-Side on Desktop)
    ========================================================================== */
 #video-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    width: 100%;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-tile {
     position: relative;
     width: 100%;
-    height: 100%;
-    min-height: 350px;
+    aspect-ratio: 1 / 1;
+    max-height: 480px;
     background-color: var(--bg-surface);
     border-radius: var(--radius-lg);
     overflow: hidden;
@@ -130,15 +141,32 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin: 0 auto;
 }
 
-/* Remote Video Element (Takes 100% of video container using object-fit: cover) */
-#remote-video {
+.video-label {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 10;
+    background: rgba(18, 24, 36, 0.8);
+    backdrop-filter: blur(8px);
+    padding: 0.35rem 0.7rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-main);
+    pointer-events: none;
+}
+
+#remote-video,
+#local-video {
     width: 100%;
     height: 100%;
     object-fit: cover;
     background-color: #000;
-    z-index: 1;
+    border-radius: var(--radius-lg);
 }
 
 .video-overlay-info {
@@ -167,31 +195,9 @@ body {
 }
 
 .placeholder-icon {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     stroke: var(--text-dim);
-}
-
-/* Local Video Element (Picture-in-Picture Overlay in bottom-right corner) */
-#local-video {
-    position: absolute;
-    bottom: 1.25rem;
-    right: 1.25rem;
-    width: 200px;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
-    border-radius: var(--radius-md);
-    border: 2px solid rgba(255, 255, 255, 0.15);
-    background-color: #000;
-    z-index: 10;
-    box-shadow: var(--shadow-pip);
-    transition: transform 0.3s ease, border-color 0.3s ease, width 0.3s ease;
-    backdrop-filter: blur(8px);
-}
-
-#local-video:hover {
-    transform: scale(1.03);
-    border-color: var(--primary);
 }
 
 /* ==========================================================================
@@ -199,26 +205,46 @@ body {
    ========================================================================== */
 #control-panel {
     display: grid;
-    grid-template-columns: 1fr 1.3fr 1.3fr 1fr;
+    grid-template-columns: 1fr 1.2fr 1.2fr 1fr;
     gap: 0.75rem;
     width: 100%;
+}
+
+.control-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.4rem;
+    box-shadow: var(--shadow-subtle);
+}
+
+.input-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
 }
 
 /* Device Selection Card & Dropdowns */
 .device-select-group {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.35rem;
 }
 
 .select-field {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.15rem;
 }
 
 .select-label {
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 500;
     color: var(--text-muted);
 }
@@ -228,10 +254,10 @@ body {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 0.35rem 0.5rem;
+    padding: 0.3rem 0.45rem;
     color: var(--text-main);
     font-family: var(--font-family);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     outline: none;
     cursor: pointer;
     transition: border-color 0.2s ease;
@@ -239,26 +265,6 @@ body {
 
 .device-select:focus {
     border-color: var(--primary);
-}
-
-.control-card {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 1rem 1.25rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.5rem;
-    box-shadow: var(--shadow-subtle);
-}
-
-.input-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
 }
 
 /* Local Peer ID Section */
@@ -269,13 +275,13 @@ body {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 0.4rem 0.75rem;
-    gap: 0.5rem;
+    padding: 0.35rem 0.65rem;
+    gap: 0.4rem;
 }
 
 #my-id-display {
     font-family: monospace;
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     font-weight: 600;
     color: #60a5fa;
     white-space: nowrap;
@@ -286,12 +292,12 @@ body {
 #copy-id-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.3rem;
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-main);
-    padding: 0.3rem 0.6rem;
-    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.72rem;
     font-weight: 500;
     border-radius: var(--radius-sm);
     cursor: pointer;
@@ -307,7 +313,7 @@ body {
 /* Connection Input & Action Buttons */
 .connect-input-group {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.4rem;
     width: 100%;
 }
 
@@ -316,10 +322,10 @@ body {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem 0.65rem;
     color: var(--text-main);
     font-family: var(--font-family);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     outline: none;
     transition: border-color 0.2s ease;
 }
@@ -333,9 +339,9 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
-    padding: 0.5rem 1.25rem;
-    font-size: 0.9rem;
+    gap: 0.35rem;
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
     font-weight: 600;
     border: none;
     border-radius: var(--radius-sm);
@@ -363,8 +369,8 @@ body {
 }
 
 .btn-icon {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
 }
 
 /* ==========================================================================
@@ -373,7 +379,7 @@ body {
 .media-toggle-group {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.4rem;
+    gap: 0.35rem;
     margin-top: 0.25rem;
 }
 
@@ -381,12 +387,12 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
+    gap: 0.3rem;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     color: var(--text-main);
-    padding: 0.45rem 0.5rem;
-    font-size: 0.8rem;
+    padding: 0.4rem 0.45rem;
+    font-size: 0.78rem;
     font-weight: 500;
     border-radius: var(--radius-sm);
     cursor: pointer;
@@ -398,7 +404,7 @@ body {
     border-color: var(--primary);
 }
 
-/* Inactive Class State for Disabled Tracks (Red background / strikethrough styling) */
+/* Inactive Class State for Disabled Tracks */
 .toggle-btn.inactive {
     background: rgba(239, 68, 68, 0.2);
     border-color: var(--danger);
@@ -416,15 +422,15 @@ body {
 .quality-btn-group {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 0.4rem;
+    gap: 0.35rem;
 }
 
 .quality-btn {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     color: var(--text-muted);
-    padding: 0.5rem 0.25rem;
-    font-size: 0.8rem;
+    padding: 0.45rem 0.2rem;
+    font-size: 0.78rem;
     font-weight: 500;
     border-radius: var(--radius-sm);
     cursor: pointer;
@@ -437,7 +443,6 @@ body {
     color: var(--text-main);
 }
 
-/* Active Class State for Quality Buttons */
 .quality-btn.active {
     background: rgba(59, 130, 246, 0.15);
     border-color: var(--border-highlight);
@@ -462,14 +467,14 @@ body {
 
 .toast-item {
     pointer-events: auto;
-    min-width: 260px;
-    max-width: 380px;
-    padding: 0.75rem 1rem;
+    min-width: 240px;
+    max-width: 360px;
+    padding: 0.65rem 0.85rem;
     border-radius: var(--radius-sm);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     color: var(--text-main);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 500;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     display: flex;
@@ -496,43 +501,56 @@ body {
 }
 
 /* ==========================================================================
-   Responsive Media Queries (< 768px)
+   Responsive Media Queries for Mobile/Narrow Screens (< 768px)
    ========================================================================== */
 @media (max-width: 768px) {
     #app-container {
-        height: auto;
-        min-height: 100vh;
-        grid-template-rows: auto auto auto;
-    }
-
-    #video-container {
-        height: 55vh;
-        min-height: 280px;
-    }
-
-    /* Stack control panel elements vertically on smaller screens */
-    #control-panel {
-        grid-template-columns: 1fr;
-        gap: 0.75rem;
-    }
-
-    /* Adjust local video PiP size for mobile */
-    #local-video {
-        width: 130px;
-        bottom: 0.75rem;
-        right: 0.75rem;
-    }
-
-    .app-header {
-        flex-direction: column;
-        align-items: flex-start;
+        padding: 0.5rem;
         gap: 0.5rem;
     }
 
+    /* Stack Video Tiles Up and Down on Smartphone */
+    #video-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    .video-tile {
+        aspect-ratio: 1 / 1;
+        max-height: 240px;
+        width: 100%;
+    }
+
+    /* Control Panel Stacked Vertically & Zoomed Out for Smartphone */
+    #control-panel {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    .control-card {
+        padding: 0.6rem 0.75rem;
+        gap: 0.35rem;
+    }
+
+    .app-header {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .app-title {
+        font-size: 1rem;
+    }
+
     #toast-container {
-        top: 0.5rem;
-        right: 0.5rem;
-        left: 0.5rem;
+        top: 0.4rem;
+        right: 0.4rem;
+        left: 0.4rem;
         align-items: center;
+    }
+}
+
+@media (max-width: 480px) {
+    #control-panel {
+        grid-template-columns: 1fr;
     }
 }
