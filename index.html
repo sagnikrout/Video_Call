@@ -67,20 +67,35 @@
                 </div>
             </div>
 
-            <!-- Media Toggles -->
+            <!-- Media Toggles & Selection -->
             <div class="dock-group media-group">
-                <button id="toggle-mic-btn" class="toggle-btn" title="Mute Mic">
-                    <svg class="btn-icon mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-                </button>
-                <button id="toggle-cam-btn" class="toggle-btn" title="Disable Cam">
-                    <svg class="btn-icon cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
-                </button>
+                <div class="split-btn-group">
+                    <button id="toggle-mic-btn" class="toggle-btn" title="Mute Mic">
+                        <svg class="btn-icon mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                    </button>
+                    <div class="select-wrapper">
+                        <button class="arrow-btn" title="Select Microphone">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <select id="mic-select" class="hidden-select"><option value="">Mic</option></select>
+                    </div>
+                </div>
+
+                <div class="split-btn-group">
+                    <button id="toggle-cam-btn" class="toggle-btn" title="Disable Cam">
+                        <svg class="btn-icon cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                    </button>
+                    <div class="select-wrapper">
+                        <button class="arrow-btn" title="Select Camera">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <select id="camera-select" class="hidden-select"><option value="">Cam</option></select>
+                    </div>
+                </div>
             </div>
 
             <!-- Settings Group -->
             <div class="dock-group settings-group">
-                <select id="mic-select" class="compact-select"><option value="">Mic</option></select>
-                <select id="camera-select" class="compact-select"><option value="">Cam</option></select>
                 <div class="quality-pills">
                     <button id="btn-quality-high" class="quality-btn">1080p</button>
                     <button id="btn-quality-medium" class="quality-btn active">720p</button>

@@ -273,26 +273,35 @@ body {
 .primary-btn { background: var(--primary); color: white; }
 .danger-btn { background: var(--danger); color: white; }
 
-/* Toggles */
+/* Toggles & Split Buttons */
+.split-btn-group {
+    display: flex;
+    align-items: stretch;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border-glass);
+    background: rgba(255, 255, 255, 0.5);
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.split-btn-group:hover {
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    transform: translateY(-2px);
+}
 .toggle-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    padding: 0.4rem 0.8rem;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--border-glass);
-    background: rgba(255, 255, 255, 0.5);
+    padding: 0.4rem 0.6rem 0.4rem 0.8rem;
+    border: none;
+    border-right: 1px solid rgba(0,0,0,0.08);
+    background: transparent;
     color: var(--text-main);
     font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.toggle-btn:hover {
-    background: white;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border-top-left-radius: var(--radius-pill);
+    border-bottom-left-radius: var(--radius-pill);
 }
 .toggle-btn.inactive {
     background: var(--danger);
@@ -302,29 +311,37 @@ body {
 .btn-icon { width: 18px; height: 18px; }
 .btn-icon, .toggle-btn.inactive .btn-icon { stroke: currentColor; }
 
-
-/* Selects */
-.compact-select {
-    appearance: none;
-    background: rgba(255,255,255,0.5);
-    border: 1px solid var(--border-glass);
-    border-radius: var(--radius-sm);
-    padding: 0.35rem 1.5rem 0.35rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-main);
-    cursor: pointer;
-    outline: none;
-    max-width: 140px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2357534e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 0.5rem center;
-    background-size: 12px;
+.select-wrapper {
+    position: relative;
+    display: flex;
+    align-items: stretch;
 }
-.compact-select:focus { border-color: var(--primary); }
+.arrow-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-top-right-radius: var(--radius-pill);
+    border-bottom-right-radius: var(--radius-pill);
+}
+.arrow-btn svg { width: 14px; height: 14px; }
+.split-btn-group:hover .arrow-btn { color: var(--text-main); }
+.hidden-select {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+
+
 
 /* Quality Pills */
 .quality-pills {
