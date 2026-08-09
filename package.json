@@ -1,0 +1,25 @@
+{
+  "name": "video_call",
+  "version": "1.0.0",
+  "description": "A client-side Peer-to-Peer video calling web application built with HTML5, CSS3, Vanilla JavaScript, WebRTC, and PeerJS.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sagnikrout/Video_Call.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sagnikrout/Video_Call/issues"
+  },
+  "homepage": "https://github.com/sagnikrout/Video_Call#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "serve": "^14.2.6"
+  }
+}
