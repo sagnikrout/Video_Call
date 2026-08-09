@@ -11,12 +11,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
-    <!-- PeerJS CDN -->
+    <!-- PeerJS Library loaded via CDN -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
+    <!-- Main Application Container -->
     <div id="app-container">
-        <!-- Main Header -->
+        
+        <!-- Header & Status Bar -->
         <header class="app-header">
             <h1 class="app-title">WebRTC P2P Video Call</h1>
             <div class="status-badge">
@@ -27,10 +29,10 @@
 
         <!-- Video Display Container -->
         <div id="video-container">
-            <!-- Remote Video (Main Viewport) -->
+            <!-- Remote Video Element (Main Viewport) -->
             <video id="remote-video" autoplay playsinline></video>
             
-            <!-- Video Overlay Controls / Info -->
+            <!-- Video Overlay Placeholder Info -->
             <div class="video-overlay-info" id="remote-video-placeholder">
                 <div class="placeholder-content">
                     <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -40,11 +42,11 @@
                 </div>
             </div>
 
-            <!-- Local Video (Picture-in-Picture) -->
+            <!-- Local Video Element (Picture-in-Picture Overlay) -->
             <video id="local-video" autoplay playsinline muted></video>
         </div>
 
-        <!-- Control Panel -->
+        <!-- Control Panel Container -->
         <div id="control-panel">
             <!-- Local Peer ID Card -->
             <div class="control-card id-card">
@@ -61,7 +63,7 @@
                 </div>
             </div>
 
-            <!-- Remote Peer Connection Input Card -->
+            <!-- Remote Peer Connection Input & Controls Card -->
             <div class="control-card connect-card">
                 <label for="remote-id-input" class="input-label">Remote Peer ID</label>
                 <div class="connect-input-group">
@@ -80,33 +82,34 @@
                         End Call
                     </button>
                 </div>
-            </div>
-
-            <!-- Quality & Media Controls Panel -->
-            <div id="quality-controls" class="control-card quality-card">
-                <label class="input-label">Stream Quality & Controls</label>
-                <div class="quality-btn-group">
-                    <button id="btn-quality-high" class="quality-btn">High (1080p)</button>
-                    <button id="btn-quality-medium" class="quality-btn active">Medium (720p)</button>
-                    <button id="btn-quality-low" class="quality-btn">Low (480p)</button>
-                </div>
+                <!-- Media Track Toggle Buttons (Mic & Cam) -->
                 <div class="media-toggle-group">
-                    <button id="mic-toggle-btn" class="toggle-btn" title="Toggle Microphone Mute">
-                        <svg class="btn-icon mic-on-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <button id="toggle-mic-btn" class="toggle-btn" title="Toggle Microphone Mute">
+                        <svg class="btn-icon mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                             <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                             <line x1="12" y1="19" x2="12" y2="23"></line>
                             <line x1="8" y1="23" x2="16" y2="23"></line>
                         </svg>
-                        Mic On
+                        Mute Mic
                     </button>
-                    <button id="cam-toggle-btn" class="toggle-btn" title="Toggle Camera Video">
-                        <svg class="btn-icon cam-on-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <button id="toggle-cam-btn" class="toggle-btn" title="Toggle Camera Video">
+                        <svg class="btn-icon cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="23 7 16 12 23 17 23 7"></polygon>
                             <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
                         </svg>
-                        Cam On
+                        Disable Cam
                     </button>
+                </div>
+            </div>
+
+            <!-- Quality Control Panel -->
+            <div id="quality-controls" class="control-card quality-card">
+                <label class="input-label">Stream Quality</label>
+                <div class="quality-btn-group">
+                    <button id="btn-quality-high" class="quality-btn">High (1080p)</button>
+                    <button id="btn-quality-medium" class="quality-btn active">Medium (720p)</button>
+                    <button id="btn-quality-low" class="quality-btn">Low (480p)</button>
                 </div>
             </div>
         </div>
@@ -115,7 +118,7 @@
         <div id="toast-container"></div>
     </div>
 
-    <!-- Application & QA Automation Scripts -->
+    <!-- Application & Diagnostics Scripts -->
     <script src="app.js"></script>
     <script src="debug.js"></script>
     <script src="stress.js"></script>

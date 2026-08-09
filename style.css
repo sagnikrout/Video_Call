@@ -1,4 +1,6 @@
-/* CSS Reset & Variables */
+/* ==========================================================================
+   CSS Reset & Custom Design System Variables
+   ========================================================================== */
 :root {
     --bg-dark: #0a0e17;
     --bg-surface: #121824;
@@ -45,7 +47,9 @@ body {
     overflow-x: hidden;
 }
 
-/* App Container Layout */
+/* ==========================================================================
+   Main App Container Layout
+   ========================================================================== */
 #app-container {
     display: grid;
     grid-template-rows: auto 1fr auto;
@@ -57,7 +61,7 @@ body {
     gap: 1rem;
 }
 
-/* Header Styles */
+/* App Header & Status Bar */
 .app-header {
     display: flex;
     justify-content: space-between;
@@ -110,7 +114,9 @@ body {
     box-shadow: 0 0 8px var(--danger);
 }
 
-/* Video Container & Elements */
+/* ==========================================================================
+   Video Container & Video Viewport Elements
+   ========================================================================== */
 #video-container {
     position: relative;
     width: 100%;
@@ -126,7 +132,7 @@ body {
     justify-content: center;
 }
 
-/* Remote Video Element (Main) */
+/* Remote Video Element (Takes 100% of video container using object-fit: cover) */
 #remote-video {
     width: 100%;
     height: 100%;
@@ -166,7 +172,7 @@ body {
     stroke: var(--text-dim);
 }
 
-/* Local Video Element (Picture-in-Picture) */
+/* Local Video Element (Picture-in-Picture Overlay in bottom-right corner) */
 #local-video {
     position: absolute;
     bottom: 1.25rem;
@@ -188,7 +194,9 @@ body {
     border-color: var(--primary);
 }
 
-/* Control Panel Layout */
+/* ==========================================================================
+   Control Panel & Card Components
+   ========================================================================== */
 #control-panel {
     display: grid;
     grid-template-columns: 1fr 1.5fr 1.2fr;
@@ -299,6 +307,10 @@ body {
     white-space: nowrap;
 }
 
+.action-btn:hover {
+    filter: brightness(1.1);
+}
+
 .action-btn:active {
     transform: scale(0.98);
 }
@@ -308,17 +320,9 @@ body {
     color: #ffffff;
 }
 
-.primary-btn:hover {
-    background-color: var(--primary-hover);
-}
-
 .danger-btn {
     background-color: var(--danger);
     color: #ffffff;
-}
-
-.danger-btn:hover {
-    background-color: var(--danger-hover);
 }
 
 .btn-icon {
@@ -326,41 +330,9 @@ body {
     height: 18px;
 }
 
-/* Quality Control Panel */
-.quality-btn-group {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.4rem;
-}
-
-.quality-btn {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    color: var(--text-muted);
-    padding: 0.5rem 0.25rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: center;
-}
-
-.quality-btn:hover {
-    background: var(--bg-card-hover);
-    color: var(--text-main);
-}
-
-/* Active Quality Button Styling */
-.quality-btn.active {
-    background: rgba(59, 130, 246, 0.15);
-    border-color: var(--border-highlight);
-    color: var(--primary);
-    font-weight: 600;
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
-}
-
-/* Media Stream Toggle Buttons (Mic / Camera) */
+/* ==========================================================================
+   Media Track Toggle Buttons (#toggle-mic-btn and #toggle-cam-btn)
+   ========================================================================== */
 .media-toggle-group {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -389,13 +361,57 @@ body {
     border-color: var(--primary);
 }
 
-.toggle-btn.muted {
-    background: rgba(239, 68, 68, 0.15);
+/* Inactive Class State for Disabled Tracks (Red background / strikethrough styling) */
+.toggle-btn.inactive {
+    background: rgba(239, 68, 68, 0.2);
     border-color: var(--danger);
     color: var(--danger);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
 }
 
-/* Toast Notifications Container & Items */
+.toggle-btn.inactive .btn-icon {
+    stroke: var(--danger);
+}
+
+/* ==========================================================================
+   Quality Control Panel & Active Button States
+   ========================================================================== */
+.quality-btn-group {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem;
+}
+
+.quality-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    padding: 0.5rem 0.25rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.quality-btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-main);
+}
+
+/* Active Class State for Quality Buttons */
+.quality-btn.active {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: var(--border-highlight);
+    color: var(--primary);
+    font-weight: 600;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+}
+
+/* ==========================================================================
+   Toast Notifications System
+   ========================================================================== */
 #toast-container {
     position: fixed;
     top: 1.25rem;
@@ -426,21 +442,10 @@ body {
     backdrop-filter: blur(8px);
 }
 
-.toast-item.toast-success {
-    border-left: 4px solid var(--success);
-}
-
-.toast-item.toast-error {
-    border-left: 4px solid var(--danger);
-}
-
-.toast-item.toast-warning {
-    border-left: 4px solid var(--warning);
-}
-
-.toast-item.toast-info {
-    border-left: 4px solid var(--primary);
-}
+.toast-item.toast-success { border-left: 4px solid var(--success); }
+.toast-item.toast-error { border-left: 4px solid var(--danger); }
+.toast-item.toast-warning { border-left: 4px solid var(--warning); }
+.toast-item.toast-info { border-left: 4px solid var(--primary); }
 
 @keyframes toastIn {
     from {
@@ -453,7 +458,9 @@ body {
     }
 }
 
-/* Responsive Styles for narrow screens < 768px */
+/* ==========================================================================
+   Responsive Media Queries (< 768px)
+   ========================================================================== */
 @media (max-width: 768px) {
     #app-container {
         height: auto;
@@ -466,15 +473,17 @@ body {
         min-height: 280px;
     }
 
+    /* Stack control panel elements vertically on smaller screens */
+    #control-panel {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    /* Adjust local video PiP size for mobile */
     #local-video {
         width: 130px;
         bottom: 0.75rem;
         right: 0.75rem;
-    }
-
-    #control-panel {
-        grid-template-columns: 1fr;
-        gap: 0.75rem;
     }
 
     .app-header {
