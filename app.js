@@ -59,6 +59,8 @@ const btnQualityHigh = document.getElementById('btn-quality-high');
 const btnQualityMedium = document.getElementById('btn-quality-medium');
 const btnQualityLow = document.getElementById('btn-quality-low');
 
+const micSelect = document.getElementById('mic-select');
+const cameraSelect = document.getElementById('camera-select');
 const toastContainer = document.getElementById('toast-container');
 
 // ==========================================
@@ -83,7 +85,7 @@ async function initializeApplication() {
 function initializePeer() {
     updateStatus('Connecting to signaling server...', 'warning');
     
-    // Instantiate new Peer object relying on the free PeerJS cloud server for signaling
+    // Instantiate new Peer object relying on free PeerJS cloud server
     // Includes public STUN servers for NAT/firewall traversal
     peer = new Peer({
         config: {
@@ -94,7 +96,6 @@ function initializePeer() {
         }
     });
 
-    // Event 1: PeerJS signaling server assigns a unique Peer ID
     peer.on('open', (id) => {
         console.log('PeerJS connection open. Assigned Local Peer ID:', id);
         myIdDisplay.textContent = id;
@@ -102,23 +103,19 @@ function initializePeer() {
         showToast('Registered with signaling server', 'success');
     });
 
-    // Event 2: Scenario - Incoming call from a remote peer
     peer.on('call', (incomingCall) => {
         console.log('Incoming call received from:', incomingCall.peer);
         showToast(`Incoming call from: ${incomingCall.peer.substring(0, 8)}...`, 'info');
         handleIncomingCall(incomingCall);
     });
 
-    // Event 3: Scenario - PeerJS signaling server disconnects
     peer.on('disconnected', () => {
         console.warn('Disconnected from PeerJS signaling server. Attempting auto-reconnection...');
         updateStatus('Reconnecting to server...', 'warning');
         showToast('Signaling server disconnected. Reconnecting...', 'warning');
-        // Execute peer.reconnect() to re-establish connection to the signaling server
         peer.reconnect();
     });
 
-    // Event 4: PeerJS Error Handling
     peer.on('error', (err) => {
         console.error('PeerJS signaling error:', err);
         if (err.type === 'peer-unavailable') {
@@ -145,10 +142,18 @@ async function requestMediaPermissions() {
             audio: true
         });
 
-        // Scenario: User grants permission
+        // User granted permission
         localStream = stream;
         localVideo.srcObject = stream;
         
+        // Populate device selection dropdowns (Zoom / Meet style)
+        await populateDeviceLists();
+        
+        // Listen for hardware device hot-plugging (headsets / webcams plugged or unplugged)
+        if (navigator.mediaDevices.ondevicechange !== undefined) {
+            navigator.mediaDevices.ondevicechange = () => populateDeviceLists();
+        }
+
         // Default the quality state to "Medium"
         await setMediaQuality('medium');
         console.log('User granted camera & microphone access. Local stream initialized.');
@@ -156,12 +161,10 @@ async function requestMediaPermissions() {
     } catch (error) {
         console.error('getUserMedia Error:', error);
         
-        // Scenario: User denies permission (NotAllowedError)
         if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
             alert('Camera and microphone permissions were denied. Please grant permissions in your browser settings to use video calling.');
             updateStatus('Permission Denied', 'disconnected');
         }
-        // Scenario: Hardware missing (NotFoundError)
         else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
             alert('No camera or microphone was detected on your device.');
             updateStatus('Hardware Not Found', 'disconnected');
@@ -174,14 +177,159 @@ async function requestMediaPermissions() {
 }
 
 // ==========================================
-// Media Track Toggle Logic (Microphone & Camera)
+// Device Selection & Hardware Enumeration (Zoom/Meet Style)
 // ==========================================
 
 /**
- * Binds UI event listeners for buttons and media controls.
+ * Enumerates connected media devices and populates microphone and camera selection dropdowns.
  */
+async function populateDeviceLists() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        
+        const audioDevices = devices.filter(d => d.kind === 'audioinput');
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+        // Populate Microphone Select Dropdown
+        if (micSelect) {
+            micSelect.innerHTML = '';
+            audioDevices.forEach((device, index) => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.text = device.label || `Microphone ${index + 1}`;
+                micSelect.appendChild(option);
+            });
+
+            // Set current active track device as selected option
+            if (localStream && localStream.getAudioTracks().length > 0) {
+                const currentAudioDeviceId = localStream.getAudioTracks()[0].getSettings().deviceId;
+                if (currentAudioDeviceId) micSelect.value = currentAudioDeviceId;
+            }
+        }
+
+        // Populate Camera Select Dropdown
+        if (cameraSelect) {
+            cameraSelect.innerHTML = '';
+            videoDevices.forEach((device, index) => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.text = device.label || `Camera ${index + 1}`;
+                cameraSelect.appendChild(option);
+            });
+
+            // Set current active track device as selected option
+            if (localStream && localStream.getVideoTracks().length > 0) {
+                const currentVideoDeviceId = localStream.getVideoTracks()[0].getSettings().deviceId;
+                if (currentVideoDeviceId) cameraSelect.value = currentVideoDeviceId;
+            }
+        }
+
+        console.log(`Devices enumerated: ${audioDevices.length} Mics, ${videoDevices.length} Cameras.`);
+    } catch (err) {
+        console.error('Error enumerating media devices:', err);
+    }
+}
+
+/**
+ * Live switches the active camera device mid-call without dropping WebRTC connection.
+ */
+async function switchCamera(deviceId) {
+    if (!deviceId || !localStream) return;
+
+    const preset = QUALITY_PRESETS[currentQuality] || QUALITY_PRESETS.medium;
+    console.log(`Switching camera to deviceId: ${deviceId}`);
+
+    try {
+        // Request new video stream from target camera device
+        const newStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                deviceId: { exact: deviceId },
+                width: { ideal: preset.width },
+                height: { ideal: preset.height },
+                frameRate: { ideal: preset.frameRate }
+            }
+        });
+
+        const newVideoTrack = newStream.getVideoTracks()[0];
+        const oldVideoTrack = localStream.getVideoTracks()[0];
+
+        // Stop previous video track hardware
+        if (oldVideoTrack) {
+            oldVideoTrack.stop();
+            localStream.removeTrack(oldVideoTrack);
+        }
+
+        // Add new track to local stream and update video element
+        localStream.addTrack(newVideoTrack);
+        localVideo.srcObject = localStream;
+
+        // Replace track on active WebRTC peer connection senders
+        if (currentCall && currentCall.peerConnection) {
+            const senders = currentCall.peerConnection.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+                await videoSender.replaceTrack(newVideoTrack);
+                console.log('RTCRtpSender replaceTrack succeeded for camera switch.');
+            }
+        }
+
+        showToast('Camera switched successfully', 'success');
+    } catch (err) {
+        console.error('Failed to switch camera:', err);
+        showToast('Failed to switch camera device', 'error');
+    }
+}
+
+/**
+ * Live switches the active microphone device mid-call without dropping WebRTC connection.
+ */
+async function switchMicrophone(deviceId) {
+    if (!deviceId || !localStream) return;
+
+    console.log(`Switching microphone to deviceId: ${deviceId}`);
+
+    try {
+        // Request new audio stream from target microphone device
+        const newStream = await navigator.mediaDevices.getUserMedia({
+            audio: { deviceId: { exact: deviceId } }
+        });
+
+        const newAudioTrack = newStream.getAudioTracks()[0];
+        const oldAudioTrack = localStream.getAudioTracks()[0];
+
+        // Stop previous audio track hardware
+        if (oldAudioTrack) {
+            oldAudioTrack.stop();
+            localStream.removeTrack(oldAudioTrack);
+        }
+
+        // Add new audio track to local stream
+        localStream.addTrack(newAudioTrack);
+
+        // Replace track on active WebRTC peer connection senders
+        if (currentCall && currentCall.peerConnection) {
+            const senders = currentCall.peerConnection.getSenders();
+            const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+            if (audioSender) {
+                await audioSender.replaceTrack(newAudioTrack);
+                console.log('RTCRtpSender replaceTrack succeeded for microphone switch.');
+            }
+        }
+
+        showToast('Microphone switched successfully', 'success');
+    } catch (err) {
+        console.error('Failed to switch microphone:', err);
+        showToast('Failed to switch microphone device', 'error');
+    }
+}
+
+// ==========================================
+// Media Track Toggle Logic (Microphone & Camera)
+// ==========================================
+
 function setupEventListeners() {
-    // Copy Peer ID button click handler
     copyIdBtn.addEventListener('click', () => {
         const idText = myIdDisplay.textContent;
         if (idText && idText !== 'Generating ID...') {
@@ -189,7 +337,6 @@ function setupEventListeners() {
         }
     });
 
-    // Initiate call button click handler
     connectBtn.addEventListener('click', () => {
         const remoteId = remoteIdInput.value.trim();
         if (!remoteId) {
@@ -203,36 +350,31 @@ function setupEventListeners() {
         initiateCall(remoteId);
     });
 
-    // Disconnect button click handler
     disconnectBtn.addEventListener('click', () => {
         hangUpCall('Call Ended');
     });
 
-    // Quality Selection Button Handlers
     btnQualityHigh.addEventListener('click', () => setMediaQuality('high'));
     btnQualityMedium.addEventListener('click', () => setMediaQuality('medium'));
     btnQualityLow.addEventListener('click', () => setMediaQuality('low'));
 
-    // Microphone Toggle Button Handler
     if (toggleMicBtn) {
         toggleMicBtn.addEventListener('click', handleMicrophoneToggle);
     }
 
-    // Camera Toggle Button Handler
     if (toggleCamBtn) {
         toggleCamBtn.addEventListener('click', handleCameraToggle);
     }
+
+    // Hardware Device Dropdown Change Handlers
+    if (micSelect) {
+        micSelect.addEventListener('change', (e) => switchMicrophone(e.target.value));
+    }
+    if (cameraSelect) {
+        cameraSelect.addEventListener('change', (e) => switchCamera(e.target.value));
+    }
 }
 
-/**
- * Inline Explanation of MediaStreamTrack Toggling Logic (Microphone):
- * ------------------------------------------------------------------
- * 1. Calling localStream.getAudioTracks()[0] retrieves the active audio MediaStreamTrack.
- * 2. Inverting track.enabled (track.enabled = !track.enabled) immediately silences or resumes
- *    audio packet transmission over WebRTC without interrupting or renegotiating the connection.
- * 3. When track.enabled is false, zero-volume silence frames are transmitted.
- * 4. We toggle the 'inactive' CSS class on id="toggle-mic-btn" to provide clear visual feedback.
- */
 function handleMicrophoneToggle() {
     if (!localStream || localStream.getAudioTracks().length === 0) {
         showToast('No active audio track available.', 'warning');
@@ -240,11 +382,8 @@ function handleMicrophoneToggle() {
     }
 
     const audioTrack = localStream.getAudioTracks()[0];
-    
-    // Invert the enabled property of the audio track
     audioTrack.enabled = !audioTrack.enabled;
 
-    // Update button visual state: apply 'inactive' CSS class when disabled/muted
     if (!audioTrack.enabled) {
         toggleMicBtn.classList.add('inactive');
         toggleMicBtn.innerHTML = `
@@ -273,15 +412,6 @@ function handleMicrophoneToggle() {
     }
 }
 
-/**
- * Inline Explanation of MediaStreamTrack Toggling Logic (Camera):
- * ----------------------------------------------------------------
- * 1. Calling localStream.getVideoTracks()[0] retrieves the active video MediaStreamTrack.
- * 2. Inverting track.enabled (track.enabled = !track.enabled) immediately pauses or resumes
- *    video frame transmission over WebRTC without tearing down the peer connection session.
- * 3. When track.enabled is false, black video frames are transmitted to the remote peer.
- * 4. We toggle the 'inactive' CSS class on id="toggle-cam-btn" to visually reflect the state.
- */
 function handleCameraToggle() {
     if (!localStream || localStream.getVideoTracks().length === 0) {
         showToast('No active video track available.', 'warning');
@@ -289,11 +419,8 @@ function handleCameraToggle() {
     }
 
     const videoTrack = localStream.getVideoTracks()[0];
-    
-    // Invert the enabled property of the video track
     videoTrack.enabled = !videoTrack.enabled;
 
-    // Update button visual state: apply 'inactive' CSS class when disabled/off
     if (!videoTrack.enabled) {
         toggleCamBtn.classList.add('inactive');
         toggleCamBtn.innerHTML = `
@@ -321,10 +448,6 @@ function handleCameraToggle() {
 // Call Lifecycle Scenarios
 // ==========================================
 
-/**
- * 1. Outgoing call scenario: User enters an ID and clicks connect.
- * Executes peer.call(remoteId, localStream), stores call object, shows disconnect button, updates status to "Connecting...".
- */
 function initiateCall(remoteId) {
     if (!localStream) {
         alert('Local stream is not ready. Please grant camera and microphone access.');
@@ -335,44 +458,25 @@ function initiateCall(remoteId) {
     updateStatus('Connecting...', 'warning');
 
     console.log(`Initiating outgoing call to peer: ${remoteId}`);
-    
-    // Execute peer.call(remoteId, localStream)
     const call = peer.call(remoteId, localStream);
-    
-    // Store the resulting call object & setup handlers
     setupCallEvents(call);
 }
 
-/**
- * 2. Incoming call scenario: Listen for peer.on('call', call => {}).
- * Automatically answers using call.answer(localStream), stores call object, shows disconnect button, updates status to "Connected".
- */
 function handleIncomingCall(call) {
     remotePeerId = call.peer;
     remoteIdInput.value = call.peer;
-
-    // Automatically answer using call.answer(localStream)
     call.answer(localStream);
-    
-    // Store call object & setup handlers
     setupCallEvents(call);
 }
 
-/**
- * Sets up stream, close, error, and ICE state event listeners on the MediaConnection call object.
- */
 function setupCallEvents(call) {
     currentCall = call;
 
-    // Show disconnect button, hide connect button
     connectBtn.style.display = 'none';
     disconnectBtn.style.display = 'inline-flex';
 
-    // 3. Receiving media scenario: Listen for call.on('stream', remoteStream => {})
     call.on('stream', (remoteStream) => {
         console.log('Remote MediaStream received.');
-        
-        // Assign remoteStream to the remote video element
         remoteVideo.srcObject = remoteStream;
         
         if (remoteVideoPlaceholder) {
@@ -380,49 +484,35 @@ function setupCallEvents(call) {
             setTimeout(() => { remoteVideoPlaceholder.style.display = 'none'; }, 400);
         }
 
-        // Update status to "Connected"
         updateStatus('Connected', 'connected');
-
-        // Re-apply bandwidth limits to newly established senders
         setMediaQuality(currentQuality);
     });
 
-    // 4. Remote user close tab scenario: Listen for call.on('close', () => {})
     call.on('close', () => {
         console.log('Call closed by remote user.');
-        // Reset UI to initial state, clear remote video element, update status to "Remote user disconnected"
         resetCallUI('Remote user disconnected');
     });
 
-    // Call error scenario
     call.on('error', (err) => {
         console.error('Call error:', err);
         resetCallUI('Call Error');
     });
 
-    // Monitor underlying WebRTC connection ICE connection state
     if (call.peerConnection) {
         monitorIceConnectionState(call.peerConnection);
     }
 }
 
-/**
- * Network Stability Scenario: Monitors call.peerConnection.oniceconnectionstatechange.
- * If ICE state transitions to 'disconnected' or 'failed', automatically attempts to reconnect
- * by initiating a new call to the known remote ID after a 2-second timeout, updating status to "Reconnecting...".
- */
 function monitorIceConnectionState(peerConnection) {
     peerConnection.oniceconnectionstatechange = () => {
         const iceState = peerConnection.iceConnectionState;
         console.log(`WebRTC ICE Connection State: ${iceState}`);
 
         if (iceState === 'disconnected' || iceState === 'failed') {
-            // Update status text to "Reconnecting..."
             updateStatus('Reconnecting...', 'warning');
 
             if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
 
-            // Automatically attempt to reconnect after a 2-second timeout
             reconnectTimeoutId = setTimeout(() => {
                 if (remotePeerId && (!currentCall || !currentCall.open)) {
                     console.log(`Initiating auto-reconnect call to remote ID: ${remotePeerId}`);
@@ -436,10 +526,6 @@ function monitorIceConnectionState(peerConnection) {
     };
 }
 
-/**
- * 4. Call termination scenario: When user clicks disconnect, execute call.close().
- * Clear remote video source, hide disconnect button, update status to "Call Ended".
- */
 function hangUpCall(statusText = 'Call Ended') {
     if (currentCall) {
         currentCall.close();
@@ -447,21 +533,16 @@ function hangUpCall(statusText = 'Call Ended') {
     resetCallUI(statusText);
 }
 
-/**
- * Resets the UI elements to initial state.
- */
 function resetCallUI(statusMessage) {
     currentCall = null;
     if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
 
-    // Clear remote video source
     remoteVideo.srcObject = null;
     if (remoteVideoPlaceholder) {
         remoteVideoPlaceholder.style.display = 'flex';
         setTimeout(() => { remoteVideoPlaceholder.style.opacity = '1'; }, 50);
     }
 
-    // Hide disconnect button, show connect button
     connectBtn.style.display = 'inline-flex';
     disconnectBtn.style.display = 'none';
 
@@ -472,28 +553,9 @@ function resetCallUI(statusMessage) {
 // Quality Constraints & Bandwidth Manipulation
 // ==========================================
 
-/**
- * Applies dynamic constraints and bandwidth limits during an active call without dropping the connection.
- * Mutex-queued via qualityChangeQueue to prevent concurrent setParameters race conditions.
- * 
- * Extensive Inline Comments Explaining RTCRtpSender Parameter Manipulation:
- * -------------------------------------------------------------------------
- * 1. The WebRTC RTCPeerConnection object manages media transmission through individual RTCRtpSender instances.
- *    Each RTCRtpSender is responsible for encoding and transmitting a single MediaStreamTrack (audio or video).
- * 2. Calling sender.getParameters() fetches an RTCRtpSendParameters object representing the current encoding configuration.
- * 3. The `parameters.encodings` array contains RTCRtpEncodingParameters objects for each RTP stream layer.
- * 4. Modifying `parameters.encodings[0].maxBitrate` sets the maximum allowable bandwidth cap (in bits per second)
- *    enforced dynamically by the browser's WebRTC rate controller and BWE (Bandwidth Estimation) engine.
- * 5. Invoking sender.setParameters(parameters) applies these bitrate limits directly to the live SRTP/DTLS stream.
- *    This allows changing video quality dynamically (e.g. 4.0 Mbps -> 1.5 Mbps -> 500 kbps) instantly without dropping
- *    the active peer call or triggering SDP renegotiation.
- * 
- * @param {string} qualityLevel - 'high' | 'medium' | 'low'
- */
 function setMediaQuality(qualityLevel) {
     if (!QUALITY_PRESETS[qualityLevel]) return Promise.resolve();
 
-    // Queue quality execution to guarantee non-concurrent setParameters calls
     qualityChangeQueue = qualityChangeQueue.then(async () => {
         try {
             await executeQualityChange(qualityLevel);
@@ -505,14 +567,10 @@ function setMediaQuality(qualityLevel) {
     return qualityChangeQueue;
 }
 
-/**
- * Core implementation function for hardware constraints & RTCRtpSender bitrate caps.
- */
 async function executeQualityChange(qualityLevel) {
     currentQuality = qualityLevel;
     const preset = QUALITY_PRESETS[qualityLevel];
 
-    // 1. Change the visual active state of quality buttons
     btnQualityHigh.classList.remove('active');
     btnQualityMedium.classList.remove('active');
     btnQualityLow.classList.remove('active');
@@ -521,7 +579,6 @@ async function executeQualityChange(qualityLevel) {
     else if (qualityLevel === 'medium') btnQualityMedium.classList.add('active');
     else if (qualityLevel === 'low') btnQualityLow.classList.add('active');
 
-    // 2. Apply resolution and frame rate changes to local hardware using localStream.getVideoTracks()[0].applyConstraints()
     if (localStream && localStream.getVideoTracks().length > 0) {
         const videoTrack = localStream.getVideoTracks()[0];
         try {
@@ -536,14 +593,12 @@ async function executeQualityChange(qualityLevel) {
         }
     }
 
-    // 3. Apply bandwidth limits by iterating through the active Call object's peerConnection.getSenders()
     if (currentCall && currentCall.peerConnection) {
         const senders = currentCall.peerConnection.getSenders();
         
         for (const sender of senders) {
             if (!sender.track) continue;
 
-            // 4. For video sender: call getParameters(), modify parameters.encodings[0].maxBitrate, apply with setParameters(parameters)
             if (sender.track.kind === 'video') {
                 try {
                     const parameters = sender.getParameters();
@@ -559,7 +614,6 @@ async function executeQualityChange(qualityLevel) {
                 }
             }
 
-            // For audio sender: modify parameters.encodings[0].maxBitrate, apply with setParameters(parameters)
             if (sender.track.kind === 'audio') {
                 try {
                     const parameters = sender.getParameters();

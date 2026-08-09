@@ -27,7 +27,9 @@
         'btn-quality-medium',
         'btn-quality-low',
         'toggle-mic-btn',
-        'toggle-cam-btn'
+        'toggle-cam-btn',
+        'mic-select',
+        'camera-select'
     ];
 
     const BITRATE_LIMITS_KBPS = {
