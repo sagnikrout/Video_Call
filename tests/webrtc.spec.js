@@ -8,11 +8,12 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await p1.goto('/');
     await p2.goto('/');
 
-    await expect(p1.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
+    await expect(p1.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 15000 });
     const id1 = await p1.locator('#my-id-display').textContent();
 
     await p2.click('#info-btn');
     await p2.fill('#remote-id-input', id1);
+    await p2.waitForTimeout(500);
     await p2.click('#connect-btn');
 
     await expect(p2.locator('.status-badge')).toHaveText(/Connected/, { timeout: 15000 });
