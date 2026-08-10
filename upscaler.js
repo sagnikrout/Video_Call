@@ -42,19 +42,28 @@ function initUpscaler(videoElement, canvasElement) {
             }
         `;
 
-        // Fragment Shader: Advanced Post-Processing (3x3 Laplacian Sharpening, Contrast, Gamma)
+        // Fragment Shader: Advanced Post-Processing with Aspect-Ratio Matching (3x3 Laplacian Sharpening, Contrast, Gamma)
         const fsSource = `
             precision mediump float;
             uniform sampler2D u_image;
             uniform vec2 u_resolution;
+            uniform vec2 u_scale;
             varying vec2 v_texCoord;
 
             const float gamma = 1.05;
             const float contrast = 1.15;
 
             void main() {
+                // Scale UV coordinates relative to texture center to preserve original video aspect ratio (object-fit: cover)
+                vec2 uv = (v_texCoord - 0.5) * u_scale + 0.5;
+
+                // Letterbox clamp check: render clean black if outside video frame
+                if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                    return;
+                }
+
                 vec2 texelSize = 1.0 / u_resolution;
-                vec2 uv = v_texCoord;
 
                 // Sample surrounding pixels for 3x3 convolution matrix
                 vec4 center = texture2D(u_image, uv);
@@ -154,6 +163,7 @@ function initUpscaler(videoElement, canvasElement) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
         const resolutionLocation = gl.getUniformLocation(shaderProgram, "u_resolution");
+        const scaleLocation = gl.getUniformLocation(shaderProgram, "u_scale");
 
         /**
          * Main WebGL render loop synchronized with browser frames.
@@ -173,6 +183,21 @@ function initUpscaler(videoElement, canvasElement) {
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
 
                 gl.uniform2f(resolutionLocation, videoElement.videoWidth, videoElement.videoHeight);
+
+                // Calculate Aspect Ratio Scale (object-fit: cover equivalent)
+                const canvasAspect = displayWidth / displayHeight;
+                const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
+                
+                let scaleX = 1.0;
+                let scaleY = 1.0;
+
+                if (videoAspect > canvasAspect) {
+                    scaleX = canvasAspect / videoAspect;
+                } else {
+                    scaleY = videoAspect / canvasAspect;
+                }
+
+                gl.uniform2f(scaleLocation, scaleX, scaleY);
 
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             }

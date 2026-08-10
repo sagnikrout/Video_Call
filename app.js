@@ -258,12 +258,21 @@ function initializePeer() {
  */
 async function requestMediaPermissions() {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const videoConstraints = isMobileDevice 
+            ? {
+                frameRate: { ideal: QUALITY_PRESETS.medium.frameRate },
+                facingMode: { ideal: 'user' }
+              }
+            : {
                 width: { ideal: QUALITY_PRESETS.medium.width },
                 height: { ideal: QUALITY_PRESETS.medium.height },
+                aspectRatio: { ideal: 1.7777777778 },
                 frameRate: { ideal: QUALITY_PRESETS.medium.frameRate }
-            },
+              };
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: videoConstraints,
             audio: {
                 echoCancellation: true,
                 noiseSuppression: true,
