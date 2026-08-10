@@ -206,7 +206,36 @@ async function requestMediaPermissions() {
 // ==========================================
 
 /**
- * Enumerates connected media devices and populates microphone and camera selection dropdowns.
+ * Toggles a target dock popover and closes all other open popovers.
+ * 
+ * @param {HTMLElement} targetPopover - The popover element to toggle.
+ */
+function togglePopover(targetPopover) {
+    const allPopovers = document.querySelectorAll('.dock-popover');
+    allPopovers.forEach(popover => {
+        if (popover !== targetPopover) {
+            popover.classList.add('hidden');
+        }
+    });
+    if (targetPopover) {
+        targetPopover.classList.toggle('hidden');
+    }
+}
+
+/**
+ * Closes all open dock popovers.
+ */
+function closeAllPopovers() {
+    const allPopovers = document.querySelectorAll('.dock-popover');
+    allPopovers.forEach(popover => popover.classList.add('hidden'));
+}
+
+// ==========================================
+// Device Selection & Hardware Enumeration (Zoom/Meet Style)
+// ==========================================
+
+/**
+ * Enumerates connected media devices and populates microphone and camera selection dropdowns & popovers.
  */
 async function populateDeviceLists() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
@@ -217,7 +246,12 @@ async function populateDeviceLists() {
         const audioDevices = devices.filter(d => d.kind === 'audioinput');
         const videoDevices = devices.filter(d => d.kind === 'videoinput');
 
-        // Populate Microphone Select Dropdown
+        let currentAudioDeviceId = localStream && localStream.getAudioTracks().length > 0 ? 
+            localStream.getAudioTracks()[0].getSettings().deviceId : null;
+        let currentVideoDeviceId = localStream && localStream.getVideoTracks().length > 0 ? 
+            localStream.getVideoTracks()[0].getSettings().deviceId : null;
+
+        // Populate Microphone Select Dropdown & Popover List
         if (micSelect) {
             micSelect.innerHTML = '';
             audioDevices.forEach((device, index) => {
@@ -227,14 +261,27 @@ async function populateDeviceLists() {
                 micSelect.appendChild(option);
             });
 
-            // Set current active track device as selected option
-            if (localStream && localStream.getAudioTracks().length > 0) {
-                const currentAudioDeviceId = localStream.getAudioTracks()[0].getSettings().deviceId;
-                if (currentAudioDeviceId) micSelect.value = currentAudioDeviceId;
-            }
+            if (currentAudioDeviceId) micSelect.value = currentAudioDeviceId;
         }
 
-        // Populate Camera Select Dropdown
+        const micDeviceList = document.getElementById('mic-device-list');
+        if (micDeviceList) {
+            micDeviceList.innerHTML = '';
+            audioDevices.forEach((device, index) => {
+                const item = document.createElement('div');
+                const isCurrent = currentAudioDeviceId === device.deviceId;
+                item.className = `device-item ${isCurrent ? 'active' : ''}`;
+                item.innerHTML = `<span>${device.label || `Microphone ${index + 1}`}</span> ${isCurrent ? '<span>✓</span>' : ''}`;
+                item.addEventListener('click', () => {
+                    switchMicrophone(device.deviceId);
+                    if (micSelect) micSelect.value = device.deviceId;
+                    closeAllPopovers();
+                });
+                micDeviceList.appendChild(item);
+            });
+        }
+
+        // Populate Camera Select Dropdown & Popover List
         if (cameraSelect) {
             cameraSelect.innerHTML = '';
             videoDevices.forEach((device, index) => {
@@ -244,11 +291,24 @@ async function populateDeviceLists() {
                 cameraSelect.appendChild(option);
             });
 
-            // Set current active track device as selected option
-            if (localStream && localStream.getVideoTracks().length > 0) {
-                const currentVideoDeviceId = localStream.getVideoTracks()[0].getSettings().deviceId;
-                if (currentVideoDeviceId) cameraSelect.value = currentVideoDeviceId;
-            }
+            if (currentVideoDeviceId) cameraSelect.value = currentVideoDeviceId;
+        }
+
+        const cameraDeviceList = document.getElementById('camera-device-list');
+        if (cameraDeviceList) {
+            cameraDeviceList.innerHTML = '';
+            videoDevices.forEach((device, index) => {
+                const item = document.createElement('div');
+                const isCurrent = currentVideoDeviceId === device.deviceId;
+                item.className = `device-item ${isCurrent ? 'active' : ''}`;
+                item.innerHTML = `<span>${device.label || `Camera ${index + 1}`}</span> ${isCurrent ? '<span>✓</span>' : ''}`;
+                item.addEventListener('click', () => {
+                    switchCamera(device.deviceId);
+                    if (cameraSelect) cameraSelect.value = device.deviceId;
+                    closeAllPopovers();
+                });
+                cameraDeviceList.appendChild(item);
+            });
         }
 
         console.log(`Devices enumerated: ${audioDevices.length} Mics, ${videoDevices.length} Cameras.`);
@@ -300,6 +360,7 @@ async function switchCamera(deviceId) {
             }
         }
 
+        populateDeviceLists();
         showToast('Camera switched successfully', 'success');
     } catch (err) {
         console.error('Failed to switch camera:', err);
@@ -343,6 +404,7 @@ async function switchMicrophone(deviceId) {
             }
         }
 
+        populateDeviceLists();
         showToast('Microphone switched successfully', 'success');
     } catch (err) {
         console.error('Failed to switch microphone:', err);
@@ -355,18 +417,66 @@ async function switchMicrophone(deviceId) {
 // ==========================================
 
 function setupEventListeners() {
+    const micPopover = document.getElementById('mic-popover');
+    const cameraPopover = document.getElementById('camera-popover');
+    const settingsPopover = document.getElementById('settings-popover');
+
+    const micArrowBtn = document.getElementById('mic-arrow-btn');
+    const camArrowBtn = document.getElementById('cam-arrow-btn');
+    const settingsBtn = document.getElementById('settings-btn');
+
     if (infoBtn && infoPanel && closeInfoBtn) {
-        infoBtn.addEventListener('click', () => {
+        infoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             infoPanel.classList.remove('hidden');
+            const allPopovers = document.querySelectorAll('.dock-popover');
+            allPopovers.forEach(pop => { if (pop !== infoPanel) pop.classList.add('hidden'); });
         });
-        closeInfoBtn.addEventListener('click', () => {
+        closeInfoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             infoPanel.classList.add('hidden');
         });
     }
 
+    if (micArrowBtn && micPopover) {
+        micArrowBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePopover(micPopover);
+        });
+    }
+
+    if (camArrowBtn && cameraPopover) {
+        camArrowBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePopover(cameraPopover);
+        });
+    }
+
+    if (settingsBtn && settingsPopover) {
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePopover(settingsPopover);
+        });
+    }
+
+    // Auto-close popovers when clicking anywhere outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.dock-popover') && !e.target.closest('.floating-dock')) {
+            closeAllPopovers();
+        }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeAllPopovers();
+        }
+    });
+
     const collapseInfoBtn = document.getElementById('collapse-info-btn');
     if (collapseInfoBtn && infoPanel) {
-        collapseInfoBtn.addEventListener('click', () => {
+        collapseInfoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             infoPanel.classList.toggle('collapsed');
         });
     }
@@ -410,6 +520,15 @@ function setupEventListeners() {
     btnQualityHigh.addEventListener('click', () => setMediaQuality('high'));
     btnQualityMedium.addEventListener('click', () => setMediaQuality('medium'));
     btnQualityLow.addEventListener('click', () => setMediaQuality('low'));
+
+    // Settings Popover Quality Buttons
+    const popoverQualityHigh = document.getElementById('popover-quality-high');
+    const popoverQualityMedium = document.getElementById('popover-quality-medium');
+    const popoverQualityLow = document.getElementById('popover-quality-low');
+
+    if (popoverQualityHigh) popoverQualityHigh.addEventListener('click', () => { setMediaQuality('high'); updatePopoverQualityButtons('high'); });
+    if (popoverQualityMedium) popoverQualityMedium.addEventListener('click', () => { setMediaQuality('medium'); updatePopoverQualityButtons('medium'); });
+    if (popoverQualityLow) popoverQualityLow.addEventListener('click', () => { setMediaQuality('low'); updatePopoverQualityButtons('low'); });
 
     if (toggleMicBtn) {
         toggleMicBtn.addEventListener('click', handleMicrophoneToggle);
@@ -869,6 +988,8 @@ async function executeQualityChange(qualityLevel) {
     else if (qualityLevel === 'medium') btnQualityMedium.classList.add('active');
     else if (qualityLevel === 'low') btnQualityLow.classList.add('active');
 
+    updatePopoverQualityButtons(qualityLevel);
+
     if (localStream && localStream.getVideoTracks().length > 0) {
         const videoTrack = localStream.getVideoTracks()[0];
         try {
@@ -1051,6 +1172,20 @@ function fallbackCopy(text) {
         showToast('Failed to copy Peer ID', 'error');
     }
     document.body.removeChild(textArea);
+}
+
+function updatePopoverQualityButtons(qualityLevel) {
+    const popoverQualityHigh = document.getElementById('popover-quality-high');
+    const popoverQualityMedium = document.getElementById('popover-quality-medium');
+    const popoverQualityLow = document.getElementById('popover-quality-low');
+
+    if (popoverQualityHigh) popoverQualityHigh.classList.remove('active');
+    if (popoverQualityMedium) popoverQualityMedium.classList.remove('active');
+    if (popoverQualityLow) popoverQualityLow.classList.remove('active');
+
+    if (qualityLevel === 'high' && popoverQualityHigh) popoverQualityHigh.classList.add('active');
+    if (qualityLevel === 'medium' && popoverQualityMedium) popoverQualityMedium.classList.add('active');
+    if (qualityLevel === 'low' && popoverQualityLow) popoverQualityLow.classList.add('active');
 }
 
 // ==========================================

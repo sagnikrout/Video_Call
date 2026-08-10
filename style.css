@@ -504,58 +504,105 @@ body {
 .quality-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 
 /* ==========================================================================
-   Info Panel & Network Telemetry (Left Floating Card)
+   Dock-Anchored Popovers System (Positioned Above Dock with z-index: 1000)
    ========================================================================== */
-.info-panel {
+.popover-anchor {
+    position: relative;
+}
+
+.dock-popover {
     position: fixed;
-    top: 5rem;
-    left: 1.5rem;
-    width: 320px;
-    background: rgba(255, 255, 255, 0.9);
+    bottom: 6.5rem;
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
-    border: 1px solid rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.9);
     border-radius: 20px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
-    padding: 1.25rem 1.5rem;
-    z-index: 50;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.14), 0 4px 12px rgba(0, 0, 0, 0.05);
+    z-index: 1000;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     opacity: 1;
+    pointer-events: auto;
+    transform-origin: bottom center;
+}
+
+/* Specific Popover Positions & Widths */
+.info-popover {
+    width: 320px;
+    padding: 1.25rem 1.5rem;
+    left: 1.5rem;
     transform: translateY(0) scale(1);
 }
 
-.info-panel.hidden {
+.info-popover.hidden {
     opacity: 0;
-    transform: translateY(-10px) scale(0.95);
+    transform: translateY(12px) scale(0.94);
     pointer-events: none;
 }
 
-.info-panel.collapsed .panel-body {
-    display: none;
+.mic-anchored-popover {
+    width: 250px;
+    padding: 1rem;
+    left: 50%;
+    transform: translateX(-160px) translateY(0) scale(1);
 }
 
-.panel-header {
+.mic-anchored-popover.hidden {
+    opacity: 0;
+    transform: translateX(-160px) translateY(12px) scale(0.94);
+    pointer-events: none;
+}
+
+.cam-anchored-popover {
+    width: 250px;
+    padding: 1rem;
+    left: 50%;
+    transform: translateX(-50px) translateY(0) scale(1);
+}
+
+.cam-anchored-popover.hidden {
+    opacity: 0;
+    transform: translateX(-50px) translateY(12px) scale(0.94);
+    pointer-events: none;
+}
+
+.settings-anchored-popover {
+    width: 270px;
+    padding: 1rem 1.25rem;
+    left: 50%;
+    transform: translateX(60px) translateY(0) scale(1);
+}
+
+.settings-anchored-popover.hidden {
+    opacity: 0;
+    transform: translateX(60px) translateY(12px) scale(0.94);
+    pointer-events: none;
+}
+
+/* Popover Header Styles */
+.popover-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 0.75rem;
 }
 
-.panel-header h2 {
-    font-size: 1.1rem;
+.popover-header h2, .popover-header h3 {
+    font-size: 1.05rem;
     font-weight: 700;
     color: var(--text-main);
+    white-space: nowrap;
+    line-height: 1.2;
+    margin: 0;
 }
 
-.panel-header-actions {
+.popover-header-actions {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.35rem;
 }
 
-.collapse-btn, .close-btn {
+.popover-icon-btn {
     background: transparent;
     border: none;
     font-size: 1.2rem;
@@ -568,14 +615,18 @@ body {
     height: 28px;
     border-radius: 50%;
     transition: background 0.2s, color 0.2s, transform 0.2s;
+    outline: none;
 }
 
-.collapse-btn:hover, .close-btn:hover {
-    background: rgba(0, 0, 0, 0.05);
+.popover-icon-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
     color: var(--text-main);
 }
 
-.close-btn:hover { color: var(--danger); }
+.popover-icon-btn.close-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+}
 
 .chevron-icon {
     width: 18px;
@@ -583,14 +634,88 @@ body {
     transition: transform 0.3s ease;
 }
 
-.info-panel.collapsed .chevron-icon {
+.info-popover.collapsed .chevron-icon {
     transform: rotate(180deg);
 }
 
-.panel-body {
+.info-popover.collapsed .popover-body {
+    display: none;
+}
+
+.popover-body {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.85rem;
+}
+
+/* Device List Options */
+.device-option-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.device-item {
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-main);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+    background: rgba(241, 245, 249, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.device-item:hover {
+    background: white;
+    border-color: rgba(59, 130, 246, 0.3);
+    color: var(--primary);
+}
+
+.device-item.active {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* Vertical Quality Tiers for Settings Popover */
+.quality-pills-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.4rem;
+}
+
+.quality-item-btn {
+    background: rgba(241, 245, 249, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quality-item-btn:hover {
+    background: white;
+    color: var(--text-main);
+}
+
+.quality-item-btn.active {
+    background: white;
+    color: var(--primary);
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
 }
 
 .call-info-block {

@@ -65,33 +65,35 @@
 
         <!-- Floating Minimalist Dock -->
         <div id="control-panel" class="floating-dock">
-            <!-- Info / Stats Toggle -->
+            <!-- 1. Info / Telemetry Dock Button -->
             <div class="dock-group">
                 <button id="info-btn" class="toggle-btn" title="Connection Details & Telemetry">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 </button>
             </div>
 
-            <!-- Media Toggles & Selection -->
+            <!-- 2. Media Toggles & Selection -->
             <div class="dock-group media-group">
+                <!-- Split Mic Group -->
                 <div class="split-btn-group">
                     <button id="toggle-mic-btn" class="toggle-btn" title="Mute Mic">
                         <svg class="btn-icon mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                     </button>
                     <div class="select-wrapper">
-                        <button class="arrow-btn" title="Select Microphone">
+                        <button id="mic-arrow-btn" class="arrow-btn" title="Select Microphone">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </button>
                         <select id="mic-select" class="hidden-select"><option value="">Mic</option></select>
                     </div>
                 </div>
 
+                <!-- Split Camera Group -->
                 <div class="split-btn-group">
                     <button id="toggle-cam-btn" class="toggle-btn" title="Disable Cam">
                         <svg class="btn-icon cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
                     </button>
                     <div class="select-wrapper">
-                        <button class="arrow-btn" title="Select Camera">
+                        <button id="cam-arrow-btn" class="arrow-btn" title="Select Camera">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </button>
                         <select id="camera-select" class="hidden-select"><option value="">Cam</option></select>
@@ -107,7 +109,7 @@
                 </button>
             </div>
 
-            <!-- Screen Share & Settings Group (In-Call / Advanced) -->
+            <!-- 3. Screen Share & Settings Group -->
             <div id="dock-in-call-tools" class="dock-group in-call-only hidden">
                 <button id="screenshare-btn" class="toggle-btn" title="Share Screen">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
@@ -117,7 +119,7 @@
                 </button>
             </div>
 
-            <!-- Settings / Quality Group (Lobby Mode) -->
+            <!-- 4. Settings / Quality Group (Lobby Mode) -->
             <div id="dock-quality-group" class="dock-group settings-group">
                 <div class="quality-pills">
                     <button id="btn-quality-high" class="quality-btn">1440p</button>
@@ -127,19 +129,23 @@
             </div>
         </div>
 
-        <!-- Info & Connection Panel (Left Floating Card) -->
-        <div id="info-panel" class="info-panel hidden">
-            <div class="panel-header">
+        <!-- ==========================================================================
+             Anchored Dock Popovers (Positioned Above Dock with z-index: 1000)
+             ========================================================================== -->
+
+        <!-- Info & Connection Panel Popover -->
+        <div id="info-panel" class="dock-popover info-popover hidden">
+            <div class="popover-header">
                 <h2 id="panel-title">Connection Details</h2>
-                <div class="panel-header-actions">
-                    <button id="collapse-info-btn" class="collapse-btn" title="Toggle Collapse">
+                <div class="popover-header-actions">
+                    <button id="collapse-info-btn" class="popover-icon-btn" title="Toggle Collapse">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-icon"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </button>
-                    <button id="close-info-btn" class="close-btn" title="Close Panel">&times;</button>
+                    <button id="close-info-btn" class="popover-icon-btn close-btn" title="Close Panel">&times;</button>
                 </div>
             </div>
             
-            <div class="panel-body">
+            <div class="popover-body">
                 <!-- In-Call Info Block (Duration & Remote Participant Name) -->
                 <div id="call-info-section" class="panel-section call-info-block hidden">
                     <div class="call-meta-item">
@@ -153,7 +159,7 @@
                 </div>
 
                 <div class="panel-section pre-call-only">
-                    <label>YOUR DARPAN ID</label>
+                    <label class="meta-label">YOUR DARPAN ID</label>
                     <div class="id-pill">
                         <span id="my-id-display">Generating...</span>
                         <button id="copy-id-btn" title="Copy ID">
@@ -163,7 +169,7 @@
                 </div>
 
                 <div class="panel-section">
-                    <label class="pre-call-only">REMOTE PEER ID</label>
+                    <label class="meta-label pre-call-only">REMOTE PEER ID</label>
                     <div class="connect-pill">
                         <input type="text" id="remote-id-input" class="pre-call-only" placeholder="Remote ID..." autocomplete="off">
                         <button id="connect-btn" class="action-btn primary-btn pre-call-only">Call</button>
@@ -188,6 +194,43 @@
                                 <span class="stat-arrow down-arrow">↓</span>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Microphone Device Selector Popover -->
+        <div id="mic-popover" class="dock-popover device-popover mic-anchored-popover hidden">
+            <div class="popover-header">
+                <h3>Microphones</h3>
+            </div>
+            <div id="mic-device-list" class="device-option-list">
+                <div class="device-item active">Standard Microphone</div>
+            </div>
+        </div>
+
+        <!-- Camera Device Selector Popover -->
+        <div id="camera-popover" class="dock-popover device-popover cam-anchored-popover hidden">
+            <div class="popover-header">
+                <h3>Cameras</h3>
+            </div>
+            <div id="camera-device-list" class="device-option-list">
+                <div class="device-item active">Standard Camera</div>
+            </div>
+        </div>
+
+        <!-- Settings Popover -->
+        <div id="settings-popover" class="dock-popover settings-popover settings-anchored-popover hidden">
+            <div class="popover-header">
+                <h3>Stream Quality</h3>
+            </div>
+            <div class="popover-body">
+                <div class="popover-section">
+                    <label class="meta-label">VIDEO RESOLUTION</label>
+                    <div class="quality-pills-vertical">
+                        <button id="popover-quality-high" class="quality-item-btn">1440p Quad HD (8.0 Mbps)</button>
+                        <button id="popover-quality-medium" class="quality-item-btn active">1080p Full HD (4.0 Mbps)</button>
+                        <button id="popover-quality-low" class="quality-item-btn">720p HD (1.5 Mbps)</button>
                     </div>
                 </div>
             </div>
