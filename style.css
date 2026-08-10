@@ -540,6 +540,31 @@ body {
 .quality-btn:hover { color: var(--text-main); }
 .quality-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 
+/* View Mode Pills (Fit vs Fill) */
+.view-mode-pills {
+    display: flex;
+    background: rgba(241, 245, 249, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    padding: 2px;
+    margin-top: 4px;
+}
+.view-mode-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+.view-mode-btn:hover { color: var(--text-main); }
+.view-mode-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.08); }
+
 /* ==========================================================================
    Dock-Anchored Popovers System (Positioned Above Dock with z-index: 1000)
    ========================================================================== */

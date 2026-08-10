@@ -578,6 +578,38 @@ function setupEventListeners() {
         });
     }
 
+    // View Mode Toggle Listeners (Fit to Frame vs Fill Screen)
+    const btnFitContain = document.getElementById('btn-fit-contain');
+    const btnFitCover = document.getElementById('btn-fit-cover');
+    const popoverBtnFit = document.getElementById('popover-btn-fit');
+    const popoverBtnFill = document.getElementById('popover-btn-fill');
+
+    function updateViewModeUI(mode) {
+        if (typeof window.setVideoFitMode === 'function') {
+            window.setVideoFitMode(mode);
+        }
+        if (mode === 'contain') {
+            if (btnFitContain) btnFitContain.classList.add('active');
+            if (btnFitCover) btnFitCover.classList.remove('active');
+            if (popoverBtnFit) popoverBtnFit.classList.add('active');
+            if (popoverBtnFill) popoverBtnFill.classList.remove('active');
+            if (remoteVideo) remoteVideo.style.objectFit = 'contain';
+            showToast('View Mode set to Fit to Frame (Full View)', 'info');
+        } else {
+            if (btnFitContain) btnFitContain.classList.remove('active');
+            if (btnFitCover) btnFitCover.classList.add('active');
+            if (popoverBtnFit) popoverBtnFit.classList.remove('active');
+            if (popoverBtnFill) popoverBtnFill.classList.add('active');
+            if (remoteVideo) remoteVideo.style.objectFit = 'cover';
+            showToast('View Mode set to Fill Screen (Zoomed Fill)', 'info');
+        }
+    }
+
+    if (btnFitContain) btnFitContain.addEventListener('click', () => updateViewModeUI('contain'));
+    if (btnFitCover) btnFitCover.addEventListener('click', () => updateViewModeUI('cover'));
+    if (popoverBtnFit) popoverBtnFit.addEventListener('click', () => updateViewModeUI('contain'));
+    if (popoverBtnFill) popoverBtnFill.addEventListener('click', () => updateViewModeUI('cover'));
+
     // Auto-close popovers when clicking anywhere outside
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.dock-popover') && !e.target.closest('.floating-dock')) {

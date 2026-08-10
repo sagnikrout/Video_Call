@@ -184,17 +184,41 @@ function initUpscaler(videoElement, canvasElement) {
 
                 gl.uniform2f(resolutionLocation, videoElement.videoWidth, videoElement.videoHeight);
 
-                // Calculate Aspect Ratio Scale (object-fit: cover equivalent)
+let currentVideoFitMode = 'contain'; // Default to 'contain' (Fit to Frame) to prevent zooming/cropping
+
+/**
+ * Updates the WebGL video view mode ('contain' = Fit to Frame uncropped, 'cover' = Fill Screen).
+ * 
+ * @param {'contain' | 'cover'} mode 
+ */
+function setVideoFitMode(mode) {
+    if (mode === 'contain' || mode === 'cover') {
+        currentVideoFitMode = mode;
+        console.log(`WebGL Video Fit Mode set to: ${mode}`);
+    }
+}
+
+                // Calculate Aspect Ratio Scale (contain vs cover)
                 const canvasAspect = displayWidth / displayHeight;
                 const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
                 
                 let scaleX = 1.0;
                 let scaleY = 1.0;
 
-                if (videoAspect > canvasAspect) {
-                    scaleX = canvasAspect / videoAspect;
+                if (currentVideoFitMode === 'cover') {
+                    // Fill Screen (Crop edges to cover full viewport)
+                    if (videoAspect > canvasAspect) {
+                        scaleX = canvasAspect / videoAspect;
+                    } else {
+                        scaleY = videoAspect / canvasAspect;
+                    }
                 } else {
-                    scaleY = videoAspect / canvasAspect;
+                    // Fit to Frame (Preserve 100% full video frame uncropped with pillarboxing)
+                    if (videoAspect > canvasAspect) {
+                        scaleY = videoAspect / canvasAspect;
+                    } else {
+                        scaleX = canvasAspect / videoAspect;
+                    }
                 }
 
                 gl.uniform2f(scaleLocation, scaleX, scaleY);
@@ -222,3 +246,4 @@ function initUpscaler(videoElement, canvasElement) {
 }
 
 window.initUpscaler = initUpscaler;
+window.setVideoFitMode = setVideoFitMode;
