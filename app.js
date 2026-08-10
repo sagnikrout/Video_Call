@@ -90,12 +90,118 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Main initialization workflow: setup event listeners, PeerJS signaling, and request media hardware.
+ * Main initialization workflow: setup event listeners, PeerJS signaling, drag engine, and request media hardware.
  */
 async function initializeApplication() {
     setupEventListeners();
     initializePeer();
+    
+    const localVideoTile = document.getElementById('local-video-tile');
+    if (localVideoTile) makeElementDraggable(localVideoTile);
+
     await requestMediaPermissions();
+}
+
+/**
+ * Enables smooth drag and corner snapping behavior on target floating PIP tile.
+ * 
+ * @param {HTMLElement} el - The floating PIP video container element.
+ */
+function makeElementDraggable(el) {
+    if (!el) return;
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+
+    el.addEventListener('mousedown', dragStart);
+    el.addEventListener('touchstart', dragStart, { passive: false });
+
+    function dragStart(e) {
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+
+        isDragging = true;
+        el.classList.add('dragging');
+
+        const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+
+        startX = clientX;
+        startY = clientY;
+
+        const rect = el.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        document.addEventListener('mousemove', dragMove);
+        document.addEventListener('touchmove', dragMove, { passive: false });
+        document.addEventListener('mouseup', dragEnd);
+        document.addEventListener('touchend', dragEnd);
+    }
+
+    function dragMove(e) {
+        if (!isDragging) return;
+        
+        const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+        const deltaX = clientX - startX;
+        const deltaY = clientY - startY;
+
+        let newLeft = initialLeft + deltaX;
+        let newTop = initialTop + deltaY;
+
+        // Viewport Boundary Clamping
+        const padding = 16;
+        const maxLeft = window.innerWidth - el.offsetWidth - padding;
+        const maxTop = window.innerHeight - el.offsetHeight - padding;
+
+        newLeft = Math.max(padding, Math.min(newLeft, maxLeft));
+        newTop = Math.max(padding, Math.min(newTop, maxTop));
+
+        el.style.left = `${newLeft}px`;
+        el.style.top = `${newTop}px`;
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+
+        if (e.cancelable) e.preventDefault();
+    }
+
+    function dragEnd() {
+        if (!isDragging) return;
+        isDragging = false;
+        el.classList.remove('dragging');
+
+        document.removeEventListener('mousemove', dragMove);
+        document.removeEventListener('touchmove', dragMove);
+        document.removeEventListener('mouseup', dragEnd);
+        document.removeEventListener('touchend', dragEnd);
+    }
+
+    // Double-click to cycle corners: Top-Right -> Top-Left -> Bottom-Left -> Bottom-Right
+    let currentCornerIndex = 0;
+    const corners = [
+        { name: 'Top-Left', getPos: (w, h) => ({ left: 24, top: 24 }) },
+        { name: 'Bottom-Left', getPos: (w, h) => ({ left: 24, top: window.innerHeight - h - 24 }) },
+        { name: 'Bottom-Right', getPos: (w, h) => ({ left: window.innerWidth - w - 24, top: window.innerHeight - h - 24 }) },
+        { name: 'Top-Right', getPos: (w, h) => ({ left: window.innerWidth - w - 24, top: 24 }) }
+    ];
+
+    el.addEventListener('dblclick', () => {
+        currentCornerIndex = (currentCornerIndex + 1) % corners.length;
+        const pos = corners[currentCornerIndex].getPos(el.offsetWidth, el.offsetHeight);
+        
+        el.style.transition = 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+        el.style.left = `${pos.left}px`;
+        el.style.top = `${pos.top}px`;
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+
+        setTimeout(() => {
+            el.style.transition = 'box-shadow 0.25s ease, border-color 0.25s ease, transform 0.2s ease';
+        }, 350);
+        showToast(`Moved preview to ${corners[currentCornerIndex].name}`, 'info');
+    });
 }
 
 /**
@@ -171,6 +277,10 @@ async function requestMediaPermissions() {
         localStream = stream;
         localVideo.srcObject = stream;
         
+        // Hide fallback avatar placeholder so live video feed is displayed
+        const localCamAvatar = document.getElementById('local-cam-off-avatar');
+        if (localCamAvatar) localCamAvatar.classList.add('hidden');
+
         // Populate device selection dropdowns (Zoom / Meet style)
         await populateDeviceLists();
         
