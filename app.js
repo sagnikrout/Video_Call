@@ -13,6 +13,12 @@ let currentQuality = 'medium';  // Current quality level state ('high' | 'medium
 let remotePeerId = '';          // Stores the remote peer ID for call management and reconnection
 let reconnectTimeoutId = null;  // Timer reference for ICE auto-reconnection attempts
 
+// In-Call UX & Screen Sharing state
+let callStartTime = null;       // Timestamp when active call started
+let callTimerInterval = null;   // Interval handle for live call duration counter
+let isScreenSharing = false;    // Whether user is currently sharing screen
+let screenStream = null;        // Active MediaStream for screen capture
+
 // Asynchronous mutex chain to queue quality modifications and prevent concurrent setParameters calls
 let qualityChangeQueue = Promise.resolve();
 
@@ -358,6 +364,25 @@ function setupEventListeners() {
         });
     }
 
+    const collapseInfoBtn = document.getElementById('collapse-info-btn');
+    if (collapseInfoBtn && infoPanel) {
+        collapseInfoBtn.addEventListener('click', () => {
+            infoPanel.classList.toggle('collapsed');
+        });
+    }
+
+    const endCallDockBtn = document.getElementById('end-call-dock-btn');
+    if (endCallDockBtn) {
+        endCallDockBtn.addEventListener('click', () => {
+            hangUpCall('Call Ended');
+        });
+    }
+
+    const screenshareBtn = document.getElementById('screenshare-btn');
+    if (screenshareBtn) {
+        screenshareBtn.addEventListener('click', toggleScreenShare);
+    }
+
     copyIdBtn.addEventListener('click', () => {
         const idText = myIdDisplay.textContent;
         if (idText && idText !== 'Generating ID...') {
@@ -448,8 +473,10 @@ function handleCameraToggle() {
 
     const videoTrack = localStream.getVideoTracks()[0];
     videoTrack.enabled = !videoTrack.enabled;
+    const localCamAvatar = document.getElementById('local-cam-off-avatar');
 
     if (!videoTrack.enabled) {
+        if (localCamAvatar) localCamAvatar.classList.remove('hidden');
         toggleCamBtn.classList.add('inactive');
         toggleCamBtn.innerHTML = `
             <svg class="btn-icon cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -460,6 +487,7 @@ function handleCameraToggle() {
         `;
         showToast('Camera Disabled', 'warning');
     } else {
+        if (localCamAvatar) localCamAvatar.classList.add('hidden');
         toggleCamBtn.classList.remove('inactive');
         toggleCamBtn.innerHTML = `
             <svg class="btn-icon cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -536,6 +564,7 @@ function setupCallEvents(call) {
 
     connectBtn.style.display = 'none';
     disconnectBtn.style.display = 'inline-flex';
+    updateCallUIState(true);
 
     call.on('stream', (remoteStream) => {
         console.log('Remote MediaStream received.');
@@ -615,8 +644,147 @@ function resetCallUI(statusMessage) {
     connectBtn.style.display = 'inline-flex';
     disconnectBtn.style.display = 'none';
 
+    updateCallUIState(false);
     stopTelemetry();
     updateStatus(statusMessage || 'Awaiting Connection', statusMessage === 'Connected' ? 'connected' : 'warning');
+}
+
+/**
+ * Updates the floating panel & dock layout depending on call state (lobby vs in-call).
+ * 
+ * @param {boolean} inCall - Whether an active call is established.
+ */
+function updateCallUIState(inCall) {
+    const panelTitle = document.getElementById('panel-title');
+    const callInfoSection = document.getElementById('call-info-section');
+    const preCallSections = document.querySelectorAll('.pre-call-only');
+    const dockQualityGroup = document.getElementById('dock-quality-group');
+    const dockEndCallGroup = document.getElementById('dock-end-call-group');
+    const dockInCallTools = document.getElementById('dock-in-call-tools');
+    const callParticipant = document.getElementById('call-participant');
+
+    if (inCall) {
+        if (panelTitle) panelTitle.textContent = 'Call Info';
+        if (callInfoSection) callInfoSection.classList.remove('hidden');
+        preCallSections.forEach(el => el.classList.add('hidden'));
+        
+        if (dockQualityGroup) dockQualityGroup.classList.add('hidden');
+        if (dockEndCallGroup) dockEndCallGroup.classList.remove('hidden');
+        if (dockInCallTools) dockInCallTools.classList.remove('hidden');
+        
+        if (callParticipant) {
+            const idToDisplay = remotePeerId ? (remotePeerId.substring(0, 12) + '...') : 'Remote Peer';
+            callParticipant.textContent = idToDisplay;
+        }
+
+        startCallTimer();
+    } else {
+        if (panelTitle) panelTitle.textContent = 'Connection Details';
+        if (callInfoSection) callInfoSection.classList.add('hidden');
+        preCallSections.forEach(el => el.classList.remove('hidden'));
+        
+        if (dockQualityGroup) dockQualityGroup.classList.remove('hidden');
+        if (dockEndCallGroup) dockEndCallGroup.classList.add('hidden');
+        if (dockInCallTools) dockInCallTools.classList.add('hidden');
+
+        stopCallTimer();
+        if (isScreenSharing) stopScreenShare();
+    }
+}
+
+/**
+ * Starts the live duration timer for active calls.
+ */
+function startCallTimer() {
+    stopCallTimer();
+    callStartTime = Date.now();
+    const durationEl = document.getElementById('call-duration');
+    if (!durationEl) return;
+
+    callTimerInterval = setInterval(() => {
+        const elapsedSec = Math.floor((Date.now() - callStartTime) / 1000);
+        const mins = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+        const secs = String(elapsedSec % 60).padStart(2, '0');
+        durationEl.textContent = `${mins}:${secs}`;
+    }, 1000);
+}
+
+/**
+ * Stops the live duration timer and resets display.
+ */
+function stopCallTimer() {
+    if (callTimerInterval) {
+        clearInterval(callTimerInterval);
+        callTimerInterval = null;
+    }
+    const durationEl = document.getElementById('call-duration');
+    if (durationEl) durationEl.textContent = '00:00';
+}
+
+/**
+ * Toggles WebRTC screen sharing using navigator.mediaDevices.getDisplayMedia.
+ */
+async function toggleScreenShare() {
+    if (!currentCall || !currentCall.peerConnection) {
+        showToast('Screen sharing is available during an active call.', 'warning');
+        return;
+    }
+
+    if (isScreenSharing) {
+        await stopScreenShare();
+    } else {
+        try {
+            const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+            screenStream = displayStream;
+            const screenTrack = displayStream.getVideoTracks()[0];
+
+            const senders = currentCall.peerConnection.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+                await videoSender.replaceTrack(screenTrack);
+            }
+
+            isScreenSharing = true;
+            const screenshareBtn = document.getElementById('screenshare-btn');
+            if (screenshareBtn) screenshareBtn.classList.add('inactive');
+            showToast('Screen sharing started', 'success');
+
+            screenTrack.onended = () => {
+                stopScreenShare();
+            };
+        } catch (err) {
+            console.error('Screen sharing error:', err);
+            showToast('Screen sharing cancelled', 'warning');
+        }
+    }
+}
+
+/**
+ * Reverts screen share back to local camera hardware.
+ */
+async function stopScreenShare() {
+    if (!isScreenSharing) return;
+    isScreenSharing = false;
+
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop());
+        screenStream = null;
+    }
+
+    if (localStream && currentCall && currentCall.peerConnection) {
+        const cameraTrack = localStream.getVideoTracks()[0];
+        if (cameraTrack) {
+            const senders = currentCall.peerConnection.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+                await videoSender.replaceTrack(cameraTrack);
+            }
+        }
+    }
+
+    const screenshareBtn = document.getElementById('screenshare-btn');
+    if (screenshareBtn) screenshareBtn.classList.remove('inactive');
+    showToast('Screen sharing stopped', 'info');
 }
 
 // ==========================================

@@ -24,8 +24,10 @@
         <!-- Header & Status Bar -->
         <header class="app-header">
             <h1 class="app-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-                Darpan
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="brand-icon"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                <span class="brand-name">Darpan</span>
+                <span class="brand-divider">|</span>
+                <span class="brand-subtitle">Darpan Video Call</span>
             </h1>
             <div class="status-badge">
                 <span class="status-dot"></span>
@@ -40,10 +42,15 @@
             
             <div class="video-overlay-info" id="remote-video-placeholder">
                 <div class="placeholder-content">
-                    <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                    </svg>
-                    <p>Waiting for peer...</p>
+                    <div class="aura-pulse-wrapper">
+                        <div class="aura-ring ring-1"></div>
+                        <div class="aura-ring ring-2"></div>
+                        <div class="aura-ring ring-3"></div>
+                        <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                    </div>
+                    <p class="placeholder-text">Waiting for peer...</p>
                 </div>
             </div>
         </div>
@@ -51,14 +58,17 @@
         <!-- Floating Picture-in-Picture Local Video -->
         <div id="local-video-tile" class="pip-video">
             <video id="local-video" autoplay playsinline muted></video>
+            <div id="local-cam-off-avatar" class="pip-avatar-fallback hidden">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
+            </div>
         </div>
 
         <!-- Floating Minimalist Dock -->
         <div id="control-panel" class="floating-dock">
-            <!-- Info Toggle -->
+            <!-- Info / Stats Toggle -->
             <div class="dock-group">
-                <button id="info-btn" class="toggle-btn" title="Connection Info">
-                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                <button id="info-btn" class="toggle-btn" title="Connection Details & Telemetry">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 </button>
             </div>
 
@@ -89,8 +99,26 @@
                 </div>
             </div>
 
-            <!-- Settings Group -->
-            <div class="dock-group settings-group">
+            <!-- Prominent Red End Call Pill Button (In-Call Mode) -->
+            <div id="dock-end-call-group" class="dock-group in-call-only hidden">
+                <button id="end-call-dock-btn" class="end-call-pill-btn" title="End Active Call">
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="end-call-icon"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+                    <span>End Call</span>
+                </button>
+            </div>
+
+            <!-- Screen Share & Settings Group (In-Call / Advanced) -->
+            <div id="dock-in-call-tools" class="dock-group in-call-only hidden">
+                <button id="screenshare-btn" class="toggle-btn" title="Share Screen">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                </button>
+                <button id="settings-btn" class="toggle-btn" title="Settings">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+            </div>
+
+            <!-- Settings / Quality Group (Lobby Mode) -->
+            <div id="dock-quality-group" class="dock-group settings-group">
                 <div class="quality-pills">
                     <button id="btn-quality-high" class="quality-btn">1440p</button>
                     <button id="btn-quality-medium" class="quality-btn active">1080p</button>
@@ -99,42 +127,67 @@
             </div>
         </div>
 
-        <!-- Info & Connection Panel (Hidden by default) -->
+        <!-- Info & Connection Panel (Left Floating Card) -->
         <div id="info-panel" class="info-panel hidden">
             <div class="panel-header">
-                <h2>Connection Details</h2>
-                <button id="close-info-btn" class="close-btn">&times;</button>
+                <h2 id="panel-title">Connection Details</h2>
+                <div class="panel-header-actions">
+                    <button id="collapse-info-btn" class="collapse-btn" title="Toggle Collapse">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-icon"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <button id="close-info-btn" class="close-btn" title="Close Panel">&times;</button>
+                </div>
             </div>
             
-            <div class="panel-section">
-                <label>Your Darpan ID</label>
-                <div class="id-pill">
-                    <span id="my-id-display">Generating...</span>
-                    <button id="copy-id-btn" title="Copy ID">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                    </button>
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <label>Remote Peer ID</label>
-                <div class="connect-pill">
-                    <input type="text" id="remote-id-input" placeholder="Remote ID..." autocomplete="off">
-                    <button id="connect-btn" class="action-btn primary-btn">Call</button>
-                    <button id="disconnect-btn" class="action-btn danger-btn" style="display: none;">End</button>
-                </div>
-            </div>
-
-            <div class="panel-section telemetry-section">
-                <label>Live Network Stats</label>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <span class="stat-label">Upload</span>
-                        <span class="stat-value" id="stat-upload">0.00 Mbps</span>
+            <div class="panel-body">
+                <!-- In-Call Info Block (Duration & Remote Participant Name) -->
+                <div id="call-info-section" class="panel-section call-info-block hidden">
+                    <div class="call-meta-item">
+                        <label class="meta-label">DURATION</label>
+                        <span id="call-duration" class="meta-value duration-value">00:00</span>
                     </div>
-                    <div class="stat-box">
-                        <span class="stat-label">Download</span>
-                        <span class="stat-value" id="stat-download">0.00 Mbps</span>
+                    <div class="call-meta-item">
+                        <label class="meta-label">PARTICIPANT</label>
+                        <span id="call-participant" class="meta-value participant-value">Connecting...</span>
+                    </div>
+                </div>
+
+                <div class="panel-section pre-call-only">
+                    <label>YOUR DARPAN ID</label>
+                    <div class="id-pill">
+                        <span id="my-id-display">Generating...</span>
+                        <button id="copy-id-btn" title="Copy ID">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <label class="pre-call-only">REMOTE PEER ID</label>
+                    <div class="connect-pill">
+                        <input type="text" id="remote-id-input" class="pre-call-only" placeholder="Remote ID..." autocomplete="off">
+                        <button id="connect-btn" class="action-btn primary-btn pre-call-only">Call</button>
+                        <button id="disconnect-btn" class="action-btn danger-btn" style="display: none;">End</button>
+                    </div>
+                </div>
+
+                <div class="panel-section telemetry-section">
+                    <label class="meta-label">LIVE NETWORK STATS</label>
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <span class="stat-label">Upload</span>
+                            <div class="stat-value-group">
+                                <span class="stat-value" id="stat-upload">0.00 Mbps</span>
+                                <span class="stat-arrow up-arrow">↑</span>
+                            </div>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Download</span>
+                            <div class="stat-value-group">
+                                <span class="stat-value" id="stat-download">0.00 Mbps</span>
+                                <span class="stat-arrow down-arrow">↓</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
