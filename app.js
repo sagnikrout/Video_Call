@@ -19,6 +19,10 @@ let callTimerInterval = null;   // Interval handle for live call duration counte
 let isScreenSharing = false;    // Whether user is currently sharing screen
 let screenStream = null;        // Active MediaStream for screen capture
 
+// Companion Data Connection & Disconnect Synchronization
+let dataConnection = null;           // Companion DataConnection for signaling events (end-call, etc.)
+let isIntentionalDisconnect = false; // Flag to prevent auto-reconnect loops when a user intentionally hangs up
+
 // Asynchronous mutex chain to queue quality modifications and prevent concurrent setParameters calls
 let qualityChangeQueue = Promise.resolve();
 
@@ -206,17 +210,28 @@ function makeElementDraggable(el) {
 
 /**
  * Instantiates the PeerJS object and binds signaling connection events.
+ * Configured with multi-region STUN + OpenRelay TURN servers for NAT traversal.
  */
 function initializePeer() {
     updateStatus('Connecting to signaling server...', 'warning');
     
-    // Instantiate new Peer object relying on free PeerJS cloud server
-    // Includes public STUN servers for NAT/firewall traversal
     peer = new Peer({
         config: {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                {
+                    urls: [
+                        'turn:openrelay.metered.ca:80',
+                        'turn:openrelay.metered.ca:443',
+                        'turns:openrelay.metered.ca:443'
+                    ],
+                    username: 'openrelay',
+                    credential: 'openrelay'
+                }
             ]
         }
     });
@@ -232,6 +247,11 @@ function initializePeer() {
         console.log('Incoming call received from:', incomingCall.peer);
         showToast(`Incoming call from: ${incomingCall.peer.substring(0, 8)}...`, 'info');
         handleIncomingCall(incomingCall);
+    });
+
+    peer.on('connection', (conn) => {
+        console.log('Incoming DataConnection received from:', conn.peer);
+        setupDataConnection(conn);
     });
 
     peer.on('disconnected', () => {
@@ -250,6 +270,36 @@ function initializePeer() {
             showToast(`Signaling Error: ${err.type}`, 'error');
             updateStatus(`Error: ${err.type}`, 'disconnected');
         }
+    });
+}
+
+/**
+ * Binds signaling listeners to a companion PeerJS DataConnection for synchronized disconnection.
+ * 
+ * @param {DataConnection} conn 
+ */
+function setupDataConnection(conn) {
+    dataConnection = conn;
+
+    conn.on('open', () => {
+        console.log('Companion DataConnection established with remote peer.');
+    });
+
+    conn.on('data', (data) => {
+        console.log('DataConnection message received:', data);
+        if (data && data.type === 'end-call') {
+            isIntentionalDisconnect = true;
+            showToast('Remote user ended the call', 'warning');
+            resetCallUI('Remote user disconnected');
+        }
+    });
+
+    conn.on('close', () => {
+        console.log('DataConnection closed.');
+    });
+
+    conn.on('error', (err) => {
+        console.warn('DataConnection error:', err);
     });
 }
 
@@ -755,8 +805,17 @@ function initiateCall(remoteId) {
     }
 
     remotePeerId = remoteId;
+    isIntentionalDisconnect = false;
     updateStatus('Connecting...', 'warning');
     console.log(`Initiating outgoing call to peer: ${remoteId}`);
+
+    try {
+        // Establish companion DataConnection for synchronized end-call signaling
+        const conn = peer.connect(remoteId);
+        setupDataConnection(conn);
+    } catch (e) {
+        console.warn("Failed to create DataConnection side-channel:", e);
+    }
 
     try {
         const call = peer.call(remoteId, localStream);
@@ -779,6 +838,7 @@ function handleIncomingCall(call) {
     try {
         remotePeerId = call.peer;
         remoteIdInput.value = call.peer;
+        isIntentionalDisconnect = false;
         call.answer(localStream);
         setupCallEvents(call);
     } catch (e) {
@@ -798,6 +858,13 @@ function setupCallEvents(call) {
 
     if (call.peerConnection) {
         enforcePreferredCodecs(call.peerConnection);
+
+        // Native RTCPeerConnection track listener to handle mobile stream reception
+        call.peerConnection.ontrack = (event) => {
+            if (event.streams && event.streams[0]) {
+                attachRemoteStream(event.streams[0]);
+            }
+        };
     }
 
     connectBtn.style.display = 'none';
@@ -805,26 +872,15 @@ function setupCallEvents(call) {
     updateCallUIState(true);
 
     call.on('stream', (remoteStream) => {
-        console.log('Remote MediaStream received.');
-        remoteVideo.srcObject = remoteStream;
-        
-        const upscaleCanvas = document.getElementById('upscale-canvas');
-        if (typeof initUpscaler === 'function') {
-            initUpscaler(remoteVideo, upscaleCanvas);
-        }
-        
-        if (remoteVideoPlaceholder) {
-            remoteVideoPlaceholder.style.opacity = '0';
-            setTimeout(() => { remoteVideoPlaceholder.style.display = 'none'; }, 400);
-        }
-
-        updateStatus('Connected', 'connected');
-        setMediaQuality(currentQuality);
+        attachRemoteStream(remoteStream);
     });
 
     call.on('close', () => {
-        console.log('Call closed by remote user.');
-        resetCallUI('Remote user disconnected');
+        console.log('Call close event received from remote user.');
+        if (!isIntentionalDisconnect) {
+            isIntentionalDisconnect = true;
+            resetCallUI('Remote user disconnected');
+        }
     });
 
     call.on('error', (err) => {
@@ -837,22 +893,55 @@ function setupCallEvents(call) {
     }
 }
 
+/**
+ * Attaches a remote MediaStream to the remote video element and initializes post-processing.
+ * 
+ * @param {MediaStream} remoteStream 
+ */
+function attachRemoteStream(remoteStream) {
+    if (!remoteStream) return;
+    console.log('Attaching remote MediaStream to video element.');
+    remoteVideo.srcObject = remoteStream;
+
+    // Handle browser autoplay policy restrictions smoothly
+    remoteVideo.play().catch(e => console.warn('Remote video playback auto-handled:', e));
+    
+    const upscaleCanvas = document.getElementById('upscale-canvas');
+    if (typeof initUpscaler === 'function' && upscaleCanvas) {
+        initUpscaler(remoteVideo, upscaleCanvas);
+    }
+    
+    if (remoteVideoPlaceholder) {
+        remoteVideoPlaceholder.style.opacity = '0';
+        setTimeout(() => { remoteVideoPlaceholder.style.display = 'none'; }, 400);
+    }
+
+    updateStatus('Connected', 'connected');
+    setMediaQuality(currentQuality);
+}
+
 function monitorIceConnectionState(peerConnection) {
     peerConnection.oniceconnectionstatechange = () => {
         const iceState = peerConnection.iceConnectionState;
         console.log(`WebRTC ICE Connection State: ${iceState}`);
 
-        if (iceState === 'disconnected' || iceState === 'failed') {
+        if (iceState === 'disconnected' || iceState === 'failed' || iceState === 'closed') {
+            if (isIntentionalDisconnect) {
+                console.log('Connection closed intentionally. Resetting UI...');
+                resetCallUI('Remote user disconnected');
+                return;
+            }
+
             updateStatus('Reconnecting...', 'warning');
 
             if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
 
             reconnectTimeoutId = setTimeout(() => {
-                if (remotePeerId && (!currentCall || !currentCall.open)) {
-                    console.log(`Initiating auto-reconnect call to remote ID: ${remotePeerId}`);
+                if (!isIntentionalDisconnect && remotePeerId && (!currentCall || !currentCall.open)) {
+                    console.log(`Attempting auto-reconnect call to remote ID: ${remotePeerId}`);
                     initiateCall(remotePeerId);
                 }
-            }, 2000);
+            }, 3000);
         } else if (iceState === 'connected' || iceState === 'completed') {
             if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
             updateStatus('Connected', 'connected');
@@ -862,9 +951,26 @@ function monitorIceConnectionState(peerConnection) {
 }
 
 function hangUpCall(statusText = 'Call Ended') {
-    if (currentCall) {
-        currentCall.close();
+    isIntentionalDisconnect = true;
+
+    // Broadcast synchronized end-call signal via companion DataConnection
+    if (dataConnection && dataConnection.open) {
+        try {
+            dataConnection.send({ type: 'end-call' });
+        } catch (e) {
+            console.warn('Error broadcasting end-call signal:', e);
+        }
     }
+
+    if (currentCall) {
+        try { currentCall.close(); } catch (e) {}
+    }
+
+    if (dataConnection) {
+        try { dataConnection.close(); } catch (e) {}
+        dataConnection = null;
+    }
+
     stopTelemetry();
     resetCallUI(statusText);
 }
