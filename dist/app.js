@@ -16,7 +16,6 @@ let reconnectTimeoutId = null;
 let callStartTime = null;
 let callTimerInterval = null;
 let isMonochromeMode = true;
-let isCircularMode = true;
 // Auto-Talk Full-Duplex Audio Engine state
 let audioContext = null;
 let localAudioSource = null;
@@ -393,40 +392,6 @@ function setVideoFitMode(mode) {
     }
 }
 /**
- * Toggles Circular Portal framing vs Cinema Widescreen rectangle mode.
- */
-function setCircularMode(enable, showNotification = true) {
-    isCircularMode = enable;
-    const videoContainer = document.getElementById('video-container');
-    const localTile = document.getElementById('local-video-tile');
-    const shapeBtn = document.getElementById('shape-toggle-btn');
-    const popoverShapeCircle = document.getElementById('popover-shape-circle');
-    const popoverShapeRect = document.getElementById('popover-shape-rect');
-    if (videoContainer) {
-        if (enable)
-            videoContainer.classList.add('circular-portal-mode');
-        else
-            videoContainer.classList.remove('circular-portal-mode');
-    }
-    if (localTile) {
-        if (enable)
-            localTile.classList.add('circular-portal-mode');
-        else
-            localTile.classList.remove('circular-portal-mode');
-    }
-    if (shapeBtn) {
-        shapeBtn.setAttribute('aria-pressed', String(enable));
-        shapeBtn.classList.toggle('active', enable);
-    }
-    if (popoverShapeCircle)
-        popoverShapeCircle.classList.toggle('active', enable);
-    if (popoverShapeRect)
-        popoverShapeRect.classList.toggle('active', !enable);
-    if (showNotification) {
-        showToast(enable ? 'Circular Portal Mode Activated' : 'Optimal Frame Mode Activated', 'info');
-    }
-}
-/**
  * Activates or deactivates Monochromatic (B&W) low-bandwidth rendering mode.
  */
 function setMonochromeMode(enable) {
@@ -447,7 +412,6 @@ function setMonochromeMode(enable) {
 window.initUpscaler = initUpscaler;
 window.setVideoFitMode = setVideoFitMode;
 window.stopUpscaler = stopUpscaler;
-window.setCircularMode = setCircularMode;
 window.setMonochromeMode = setMonochromeMode;
 // ==========================================
 // Initialization & Hardware Permission Logic
@@ -460,7 +424,6 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 async function initializeApplication() {
     setMonochromeMode(true);
-    setCircularMode(true, false);
     setupEventListeners();
     initializePeer();
     const localVideoTile = document.getElementById('local-video-tile');
@@ -1133,26 +1096,6 @@ function setupEventListeners() {
         popoverQualityMedium.addEventListener('click', () => { setMediaQuality('medium'); updatePopoverQualityButtons('medium'); });
     if (popoverQualityLow)
         popoverQualityLow.addEventListener('click', () => { setMediaQuality('low'); updatePopoverQualityButtons('low'); });
-    const shapeToggleBtn = document.getElementById('shape-toggle-btn');
-    if (shapeToggleBtn) {
-        shapeToggleBtn.addEventListener('click', () => {
-            setCircularMode(!isCircularMode);
-        });
-    }
-    const popoverShapeCircle = document.getElementById('popover-shape-circle');
-    if (popoverShapeCircle) {
-        popoverShapeCircle.addEventListener('click', () => {
-            if (!isCircularMode)
-                setCircularMode(true);
-        });
-    }
-    const popoverShapeRect = document.getElementById('popover-shape-rect');
-    if (popoverShapeRect) {
-        popoverShapeRect.addEventListener('click', () => {
-            if (isCircularMode)
-                setCircularMode(false);
-        });
-    }
     if (toggleMicBtn) {
         toggleMicBtn.addEventListener('click', handleMicrophoneToggle);
     }

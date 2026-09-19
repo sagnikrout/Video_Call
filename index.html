@@ -38,7 +38,7 @@
         </header>
 
         <!-- Full Bleed Remote Video / Background -->
-        <div id="video-container" class="full-bleed-bg circular-portal-mode">
+        <div id="video-container" class="full-bleed-bg">
             <video id="remote-video" autoplay playsinline style="display: none;"></video>
             <canvas id="upscale-canvas"></canvas>
             
@@ -58,7 +58,7 @@
         </div>
 
         <!-- Floating Picture-in-Picture Local Video -->
-        <div id="local-video-tile" class="pip-video circular-portal-mode">
+        <div id="local-video-tile" class="pip-video">
             <video id="local-video" autoplay playsinline muted></video>
             <div id="local-cam-off-avatar" class="pip-avatar-fallback hidden">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
@@ -67,13 +67,10 @@
 
         <!-- Floating Minimalist Dock -->
         <nav id="control-panel" class="floating-dock" aria-label="Call controls">
-            <!-- 1. Info & Geometry Dock Buttons -->
+            <!-- 1. Info & Telemetry Dock Button -->
             <div class="dock-group">
                 <button id="info-btn" class="toggle-btn" title="Connection Details & Telemetry" aria-label="Open connection details and telemetry" aria-expanded="false">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                </button>
-                <button id="shape-toggle-btn" class="toggle-btn active" title="Toggle Circular Portal Mode" aria-label="Toggle circular portal mode" aria-pressed="true">
-                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle></svg>
                 </button>
             </div>
 
@@ -227,13 +224,6 @@
                 <h3>Video & Stream Settings</h3>
             </div>
             <div class="popover-body">
-                <div class="popover-section">
-                    <label class="meta-label">FRAME GEOMETRY</label>
-                    <div class="quality-pills-vertical" role="group" aria-label="Frame geometry settings">
-                        <button id="popover-shape-circle" class="quality-item-btn active" aria-label="Circular Portal Bandwidth Saver">Circular Portal (Bandwidth Saver)</button>
-                        <button id="popover-shape-rect" class="quality-item-btn" aria-label="Optimal sqrt(2):1 Rectangle">Optimal &radic;2 : 1 Frame (1528&times;1080)</button>
-                    </div>
-                </div>
                 <div class="popover-section">
                     <label class="meta-label">1080P SUBPIXEL &amp; EXTRAPOLATION ENGINE (MINIMUM 30 FPS)</label>
                     <div class="quality-pills-vertical" role="group" aria-label="1080p Extrapolated profiles">
