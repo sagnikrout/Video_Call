@@ -113,22 +113,22 @@ const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     high: {
         width: 1920,
         height: 1080,
-        frameRate: 24, // 24 fps cinematic carrier -> 48 fps HFR extrapolated
-        videoMaxBitrate: 4500000, // 4.5 Mbps Ultra 1080p
+        frameRate: 60, // 60 fps Ultra HFR (Strict >= 30 fps hardware floor)
+        videoMaxBitrate: 6000000, // 6.0 Mbps Ultra 1080p
         audioMaxBitrate: 256000   // 256 kbps
     },
     medium: {
         width: 1920,
         height: 1080,
-        frameRate: 24, // 24 fps cinematic carrier -> 48 fps HFR extrapolated
-        videoMaxBitrate: 3500000, // 3.5 Mbps Studio 1080p
+        frameRate: 30, // 30 fps carrier -> 60 fps extrapolated (Strict >= 30 fps floor)
+        videoMaxBitrate: 4500000, // 4.5 Mbps Studio 1080p
         audioMaxBitrate: 128000   // 128 kbps
     },
     low: {
         width: 1920,
         height: 1080,
-        frameRate: 12, // 12 fps carrier -> 24/48 fps extrapolated (Eco mode)
-        videoMaxBitrate: 1800000, // 1.8 Mbps Eco 1080p
+        frameRate: 30, // 30 fps carrier (Strict floor: nothing less than 30 fps)
+        videoMaxBitrate: 2500000, // 2.5 Mbps Eco 1080p
         audioMaxBitrate: 64000    // 64 kbps
     }
 };
@@ -256,7 +256,7 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
                 // Motion vector clamped to ensure clean stability
                 vec2 motionVec = clamp(-((lumaDelta * grad) / gradSq) * texelSize, -texelSize * 3.0, texelSize * 3.0);
 
-                // 3. Forward Motion Vector Extrapolation (24 fps -> 48 fps double-rate synthesis)
+                // 3. Forward Motion Vector Extrapolation (30 fps -> 60 fps double-rate synthesis)
                 // Extrapolates forward trajectory along velocity vector for in-between sub-frames
                 vec2 offsetPrev = motionVec * (1.0 - u_temporalPhase * 0.5);
                 vec2 offsetCurr = -motionVec * (u_temporalPhase * 0.5);
@@ -383,7 +383,7 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
 
         let lastVideoTime = -1;
         let frameStartTime = performance.now();
-        let estimatedFrameDuration = 41.67; // Default 24fps cinematic carrier interval (41.67ms)
+        let estimatedFrameDuration = 33.33; // Default 30fps carrier interval (33.33ms, nothing less than 30fps)
 
         function renderLoop(): void {
             if (!videoElement.paused && !videoElement.ended && videoElement.videoWidth > 0) {
@@ -419,7 +419,7 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
                     gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, videoElement);
                 }
 
-                // Compute smooth temporal motion extrapolation phase for 48 FPS double-rate rendering
+                // Compute smooth temporal motion extrapolation phase for 60 FPS double-rate rendering
                 const elapsed = now - frameStartTime;
                 const alpha = Math.min(Math.max(elapsed / Math.max(estimatedFrameDuration, 16.0), 0.0), 1.0);
 
@@ -1791,7 +1791,7 @@ async function executeQualityChange(qualityLevel: QualityLevel): Promise<void> {
         }
     }
     setMonochromeMode(true);
-    showToast(`Quality set to ${qualityLevel.charAt(0).toUpperCase() + qualityLevel.slice(1)} (1080p 24fps -> 48fps Extrapolated)`, 'info');
+    showToast(`Quality set to ${qualityLevel.charAt(0).toUpperCase() + qualityLevel.slice(1)} (1080p ${preset.frameRate === 60 ? '60fps Native HFR' : '30fps -> 60fps Extrapolated'})`, 'info');
 }
 
 // ==========================================
