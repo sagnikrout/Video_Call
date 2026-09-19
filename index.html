@@ -8,6 +8,8 @@
     <meta http-equiv="Expires" content="0">
     <title>Darpan WebRTC</title>
     <meta name="description" content="Darpan Client-side Peer-to-Peer WebRTC Video Calling Application">
+    <meta name="theme-color" content="#0a0f1d">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236366f1'><polygon points='12 2 2 7 12 12 22 7 12 2'/><polyline points='2 17 12 22 22 17'/><polyline points='2 12 12 17 22 12'/></svg>">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -64,10 +66,10 @@
         </div>
 
         <!-- Floating Minimalist Dock -->
-        <div id="control-panel" class="floating-dock">
+        <nav id="control-panel" class="floating-dock" aria-label="Call controls">
             <!-- 1. Info / Telemetry Dock Button -->
             <div class="dock-group">
-                <button id="info-btn" class="toggle-btn" title="Connection Details & Telemetry">
+                <button id="info-btn" class="toggle-btn" title="Connection Details & Telemetry" aria-label="Open connection details and telemetry" aria-expanded="false">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 </button>
             </div>
@@ -76,34 +78,34 @@
             <div class="dock-group media-group">
                 <!-- Split Mic Group -->
                 <div class="split-btn-group">
-                    <button id="toggle-mic-btn" class="toggle-btn" title="Mute Mic">
+                    <button id="toggle-mic-btn" class="toggle-btn" title="Mute Mic" aria-label="Toggle microphone" aria-pressed="false">
                         <svg class="btn-icon mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                     </button>
                     <div class="select-wrapper">
-                        <button id="mic-arrow-btn" class="arrow-btn" title="Select Microphone">
+                        <button id="mic-arrow-btn" class="arrow-btn" title="Select Microphone" aria-label="Choose microphone device" aria-expanded="false">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </button>
-                        <select id="mic-select" class="hidden-select"><option value="">Mic</option></select>
+                        <select id="mic-select" class="hidden-select" aria-label="Microphone device list"><option value="">Mic</option></select>
                     </div>
                 </div>
 
                 <!-- Split Camera Group -->
                 <div class="split-btn-group">
-                    <button id="toggle-cam-btn" class="toggle-btn" title="Disable Cam">
+                    <button id="toggle-cam-btn" class="toggle-btn" title="Disable Cam" aria-label="Toggle camera" aria-pressed="false">
                         <svg class="btn-icon cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
                     </button>
                     <div class="select-wrapper">
-                        <button id="cam-arrow-btn" class="arrow-btn" title="Select Camera">
+                        <button id="cam-arrow-btn" class="arrow-btn" title="Select Camera" aria-label="Choose camera device" aria-expanded="false">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </button>
-                        <select id="camera-select" class="hidden-select"><option value="">Cam</option></select>
+                        <select id="camera-select" class="hidden-select" aria-label="Camera device list"><option value="">Cam</option></select>
                     </div>
                 </div>
             </div>
 
             <!-- Prominent Red End Call Pill Button (In-Call Mode) -->
             <div id="dock-end-call-group" class="dock-group in-call-only hidden">
-                <button id="end-call-dock-btn" class="end-call-pill-btn" title="End Active Call">
+                <button id="end-call-dock-btn" class="end-call-pill-btn" title="End Active Call" aria-label="End active video call">
                     <svg viewBox="0 0 24 24" fill="currentColor" class="end-call-icon"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
                     <span>End Call</span>
                 </button>
@@ -111,37 +113,37 @@
 
             <!-- 3. Screen Share & Settings Group -->
             <div id="dock-in-call-tools" class="dock-group in-call-only hidden">
-                <button id="screenshare-btn" class="toggle-btn" title="Share Screen">
+                <button id="screenshare-btn" class="toggle-btn" title="Share Screen" aria-label="Toggle screen sharing" aria-pressed="false">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
                 </button>
-                <button id="settings-btn" class="toggle-btn" title="Settings">
+                <button id="settings-btn" class="toggle-btn" title="Settings" aria-label="Open settings" aria-expanded="false">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 </button>
             </div>
 
             <!-- 4. Settings / Quality Group (Lobby Mode) -->
-            <div id="dock-quality-group" class="dock-group settings-group">
+            <div id="dock-quality-group" class="dock-group settings-group" role="group" aria-label="Stream quality presets">
                 <div class="quality-pills">
-                    <button id="btn-quality-high" class="quality-btn">1440p</button>
-                    <button id="btn-quality-medium" class="quality-btn active">1080p</button>
-                    <button id="btn-quality-low" class="quality-btn">720p</button>
+                    <button id="btn-quality-high" class="quality-btn" aria-label="1440p Quad HD">1440p</button>
+                    <button id="btn-quality-medium" class="quality-btn active" aria-label="1080p Full HD">1080p</button>
+                    <button id="btn-quality-low" class="quality-btn" aria-label="720p HD">720p</button>
                 </div>
             </div>
-        </div>
+        </nav>
 
         <!-- ==========================================================================
              Anchored Dock Popovers (Positioned Above Dock with z-index: 1000)
              ========================================================================== -->
 
         <!-- Info & Connection Panel Popover -->
-        <div id="info-panel" class="dock-popover info-popover hidden">
+        <div id="info-panel" class="dock-popover info-popover hidden" role="region" aria-label="Connection Details and Telemetry">
             <div class="popover-header">
                 <h2 id="panel-title">Connection Details</h2>
                 <div class="popover-header-actions">
-                    <button id="collapse-info-btn" class="popover-icon-btn" title="Toggle Collapse">
+                    <button id="collapse-info-btn" class="popover-icon-btn" title="Toggle Collapse" aria-label="Toggle panel collapse">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron-icon"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </button>
-                    <button id="close-info-btn" class="popover-icon-btn close-btn" title="Close Panel">&times;</button>
+                    <button id="close-info-btn" class="popover-icon-btn close-btn" title="Close Panel" aria-label="Close connection panel">&times;</button>
                 </div>
             </div>
             
@@ -159,10 +161,10 @@
                 </div>
 
                 <div class="panel-section pre-call-only">
-                    <label class="meta-label">YOUR DARPAN ID</label>
+                    <label class="meta-label" for="my-id-display">YOUR DARPAN ID</label>
                     <div class="id-pill">
                         <span id="my-id-display">Generating...</span>
-                        <button id="copy-id-btn" title="Copy ID">
+                        <button id="copy-id-btn" title="Copy ID" aria-label="Copy your Peer ID to clipboard">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         </button>
                     </div>
@@ -200,44 +202,44 @@
         </div>
 
         <!-- Microphone Device Selector Popover -->
-        <div id="mic-popover" class="dock-popover device-popover mic-anchored-popover hidden">
+        <div id="mic-popover" class="dock-popover device-popover mic-anchored-popover hidden" role="dialog" aria-label="Microphone Selection">
             <div class="popover-header">
                 <h3>Microphones</h3>
             </div>
-            <div id="mic-device-list" class="device-option-list">
+            <div id="mic-device-list" class="device-option-list" role="listbox" aria-label="Available Microphones">
                 <div class="device-item active">Standard Microphone</div>
             </div>
         </div>
 
         <!-- Camera Device Selector Popover -->
-        <div id="camera-popover" class="dock-popover device-popover cam-anchored-popover hidden">
+        <div id="camera-popover" class="dock-popover device-popover cam-anchored-popover hidden" role="dialog" aria-label="Camera Selection">
             <div class="popover-header">
                 <h3>Cameras</h3>
             </div>
-            <div id="camera-device-list" class="device-option-list">
+            <div id="camera-device-list" class="device-option-list" role="listbox" aria-label="Available Cameras">
                 <div class="device-item active">Standard Camera</div>
             </div>
         </div>
 
         <!-- Settings Popover -->
-        <div id="settings-popover" class="dock-popover settings-popover settings-anchored-popover hidden">
+        <div id="settings-popover" class="dock-popover settings-popover settings-anchored-popover hidden" role="dialog" aria-label="Stream Settings">
             <div class="popover-header">
                 <h3>Stream Quality</h3>
             </div>
             <div class="popover-body">
                 <div class="popover-section">
                     <label class="meta-label">VIDEO RESOLUTION</label>
-                    <div class="quality-pills-vertical">
-                        <button id="popover-quality-high" class="quality-item-btn">1440p Quad HD (8.0 Mbps)</button>
-                        <button id="popover-quality-medium" class="quality-item-btn active">1080p Full HD (4.0 Mbps)</button>
-                        <button id="popover-quality-low" class="quality-item-btn">720p HD (1.5 Mbps)</button>
+                    <div class="quality-pills-vertical" role="group" aria-label="Quality settings">
+                        <button id="popover-quality-high" class="quality-item-btn" aria-label="1440p Quad HD 8 Mbps">1440p Quad HD (8.0 Mbps)</button>
+                        <button id="popover-quality-medium" class="quality-item-btn active" aria-label="1080p Full HD 4 Mbps">1080p Full HD (4.0 Mbps)</button>
+                        <button id="popover-quality-low" class="quality-item-btn" aria-label="720p HD 1.5 Mbps">720p HD (1.5 Mbps)</button>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Toast Notifications Container -->
-        <div id="toast-container"></div>
+        <div id="toast-container" role="status" aria-live="polite"></div>
     </div>
 
     <!-- Application Runtime (Compiled TypeScript WebGL + WebRTC Engine) -->

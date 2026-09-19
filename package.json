@@ -7,7 +7,7 @@
     "build": "tsc",
     "type-check": "tsc --noEmit",
     "watch": "tsc --watch",
-    "test": "playwright test"
+    "test": "tsc && playwright test"
   },
   "repository": {
     "type": "git",

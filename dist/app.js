@@ -549,6 +549,7 @@ function togglePopover(targetPopover) {
     if (targetPopover) {
         targetPopover.classList.toggle('hidden');
     }
+    syncPopoverAria();
 }
 /**
  * Closes all open dock popovers.
@@ -556,6 +557,25 @@ function togglePopover(targetPopover) {
 function closeAllPopovers() {
     const allPopovers = document.querySelectorAll('.dock-popover');
     allPopovers.forEach(popover => popover.classList.add('hidden'));
+    syncPopoverAria();
+}
+function syncPopoverAria() {
+    const infoPanelEl = document.getElementById('info-panel');
+    const micPopoverEl = document.getElementById('mic-popover');
+    const cameraPopoverEl = document.getElementById('camera-popover');
+    const settingsPopoverEl = document.getElementById('settings-popover');
+    const infoBtnEl = document.getElementById('info-btn');
+    const micArrowBtnEl = document.getElementById('mic-arrow-btn');
+    const camArrowBtnEl = document.getElementById('cam-arrow-btn');
+    const settingsBtnEl = document.getElementById('settings-btn');
+    if (infoBtnEl && infoPanelEl)
+        infoBtnEl.setAttribute('aria-expanded', String(!infoPanelEl.classList.contains('hidden')));
+    if (micArrowBtnEl && micPopoverEl)
+        micArrowBtnEl.setAttribute('aria-expanded', String(!micPopoverEl.classList.contains('hidden')));
+    if (camArrowBtnEl && cameraPopoverEl)
+        camArrowBtnEl.setAttribute('aria-expanded', String(!cameraPopoverEl.classList.contains('hidden')));
+    if (settingsBtnEl && settingsPopoverEl)
+        settingsBtnEl.setAttribute('aria-expanded', String(!settingsPopoverEl.classList.contains('hidden')));
 }
 // ==========================================
 // Device Selection & Hardware Enumeration (Zoom/Meet Style)
@@ -592,7 +612,14 @@ async function populateDeviceLists() {
                 const item = document.createElement('div');
                 const isCurrent = currentAudioDeviceId === device.deviceId;
                 item.className = `device-item ${isCurrent ? 'active' : ''}`;
-                item.innerHTML = `<span>${device.label || `Microphone ${index + 1}`}</span> ${isCurrent ? '<span>✓</span>' : ''}`;
+                const labelSpan = document.createElement('span');
+                labelSpan.textContent = device.label || `Microphone ${index + 1}`;
+                item.appendChild(labelSpan);
+                if (isCurrent) {
+                    const checkSpan = document.createElement('span');
+                    checkSpan.textContent = '✓';
+                    item.appendChild(checkSpan);
+                }
                 item.addEventListener('click', () => {
                     switchMicrophone(device.deviceId);
                     if (micSelect)
@@ -620,7 +647,14 @@ async function populateDeviceLists() {
                 const item = document.createElement('div');
                 const isCurrent = currentVideoDeviceId === device.deviceId;
                 item.className = `device-item ${isCurrent ? 'active' : ''}`;
-                item.innerHTML = `<span>${device.label || `Camera ${index + 1}`}</span> ${isCurrent ? '<span>✓</span>' : ''}`;
+                const labelSpan = document.createElement('span');
+                labelSpan.textContent = device.label || `Camera ${index + 1}`;
+                item.appendChild(labelSpan);
+                if (isCurrent) {
+                    const checkSpan = document.createElement('span');
+                    checkSpan.textContent = '✓';
+                    item.appendChild(checkSpan);
+                }
                 item.addEventListener('click', () => {
                     switchCamera(device.deviceId);
                     if (cameraSelect)
@@ -857,6 +891,7 @@ function handleMicrophoneToggle() {
     audioTrack.enabled = !audioTrack.enabled;
     if (!audioTrack.enabled) {
         toggleMicBtn.classList.add('inactive');
+        toggleMicBtn.setAttribute('aria-pressed', 'true');
         toggleMicBtn.innerHTML = `
             <svg class="btn-icon mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="1" y1="1" x2="23" y2="23"></line>
@@ -871,6 +906,7 @@ function handleMicrophoneToggle() {
     }
     else {
         toggleMicBtn.classList.remove('inactive');
+        toggleMicBtn.setAttribute('aria-pressed', 'false');
         toggleMicBtn.innerHTML = `
             <svg class="btn-icon mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -895,6 +931,7 @@ function handleCameraToggle() {
         if (localCamAvatar)
             localCamAvatar.classList.remove('hidden');
         toggleCamBtn.classList.add('inactive');
+        toggleCamBtn.setAttribute('aria-pressed', 'true');
         toggleCamBtn.innerHTML = `
             <svg class="btn-icon cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path>
@@ -908,6 +945,7 @@ function handleCameraToggle() {
         if (localCamAvatar)
             localCamAvatar.classList.add('hidden');
         toggleCamBtn.classList.remove('inactive');
+        toggleCamBtn.setAttribute('aria-pressed', 'false');
         toggleCamBtn.innerHTML = `
             <svg class="btn-icon cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="23 7 16 12 23 17 23 7"></polygon>
@@ -1204,8 +1242,10 @@ async function toggleScreenShare() {
             }
             isScreenSharing = true;
             const screenshareBtn = document.getElementById('screenshare-btn');
-            if (screenshareBtn)
+            if (screenshareBtn) {
                 screenshareBtn.classList.add('inactive');
+                screenshareBtn.setAttribute('aria-pressed', 'true');
+            }
             showToast('Screen sharing started', 'success');
             screenTrack.onended = () => {
                 stopScreenShare();
@@ -1239,8 +1279,10 @@ async function stopScreenShare() {
         }
     }
     const screenshareBtn = document.getElementById('screenshare-btn');
-    if (screenshareBtn)
+    if (screenshareBtn) {
         screenshareBtn.classList.remove('inactive');
+        screenshareBtn.setAttribute('aria-pressed', 'false');
+    }
     showToast('Screen sharing stopped', 'info');
 }
 // ==========================================
@@ -1489,6 +1531,10 @@ function copyToClipboard(text) {
 function fallbackCopy(text) {
     const textArea = document.createElement('textarea');
     textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    textArea.style.top = '0';
+    textArea.setAttribute('readonly', '');
     document.body.appendChild(textArea);
     textArea.select();
     try {

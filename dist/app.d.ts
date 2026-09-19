@@ -159,6 +159,7 @@ declare function togglePopover(targetPopover: HTMLElement | null): void;
  * Closes all open dock popovers.
  */
 declare function closeAllPopovers(): void;
+declare function syncPopoverAria(): void;
 /**
  * Enumerates connected media devices and populates microphone and camera selection dropdowns & popovers.
  */

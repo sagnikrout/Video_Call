@@ -954,3 +954,22 @@ body {
         font-size: 1rem;
     }
 }
+
+/* ==========================================================================
+   Accessibility & Keyboard Navigation (WCAG 2.1 AA Focus Rings)
+   ========================================================================== */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid var(--primary) !important;
+    outline-offset: 2px !important;
+}
+
+.toggle-btn:focus-visible,
+.arrow-btn:focus-visible,
+.popover-icon-btn:focus-visible,
+.end-call-pill-btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4) !important;
+}
+
