@@ -113,22 +113,22 @@ const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     high: {
         width: 1920,
         height: 1080,
-        frameRate: 60,
-        videoMaxBitrate: 6000000, // 6.0 Mbps Ultra 1080p
+        frameRate: 30, // 30 fps carrier -> 60 fps MEMC
+        videoMaxBitrate: 5000000, // 5.0 Mbps Ultra 1080p
         audioMaxBitrate: 256000   // 256 kbps
     },
     medium: {
         width: 1920,
         height: 1080,
-        frameRate: 60,
-        videoMaxBitrate: 4500000, // 4.5 Mbps Studio 1080p
+        frameRate: 30, // 30 fps carrier -> 60 fps MEMC
+        videoMaxBitrate: 4000000, // 4.0 Mbps Studio 1080p
         audioMaxBitrate: 128000   // 128 kbps
     },
     low: {
         width: 1920,
         height: 1080,
-        frameRate: 60,
-        videoMaxBitrate: 2500000, // 2.5 Mbps Eco 1080p
+        frameRate: 15, // 15 fps carrier -> 60 fps MEMC
+        videoMaxBitrate: 2000000, // 2.0 Mbps Eco 1080p
         audioMaxBitrate: 64000    // 64 kbps
     }
 };
@@ -207,7 +207,9 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
 
         const fsSource = `
             precision mediump float;
-            uniform sampler2D u_image;
+            uniform sampler2D u_imageCurr;
+            uniform sampler2D u_imagePrev;
+            uniform float u_temporalPhase;
             uniform vec2 u_resolution;
             uniform vec2 u_scale;
             varying vec2 v_texCoord;
@@ -232,41 +234,69 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
 
                 vec2 texelSize = 1.0 / u_resolution;
                 
-                // Physical RGB Subpixel Horizontal Displacement (-1/3 texel, 0, +1/3 texel)
+                // 1. Physical RGB Subpixel Horizontal Displacement (-1/3 texel, 0, +1/3 texel)
                 float subOffset = texelSize.x * 0.333333;
                 vec2 uvR = uv - vec2(subOffset, 0.0);
                 vec2 uvG = uv;
                 vec2 uvB = uv + vec2(subOffset, 0.0);
 
-                // Sample centers at exact physical subpixel spatial coordinates
-                float centerR = getLuma(texture2D(u_image, uvR));
-                float centerG = getLuma(texture2D(u_image, uvG));
-                float centerB = getLuma(texture2D(u_image, uvB));
+                // 2. Optical Flow Motion Vector Estimation between frames
+                float lumaPrev = getLuma(texture2D(u_imagePrev, uv));
+                float lumaCurr = getLuma(texture2D(u_imageCurr, uv));
+                
+                float lumaX = (getLuma(texture2D(u_imageCurr, uv + vec2(texelSize.x, 0.0))) -
+                               getLuma(texture2D(u_imageCurr, uv - vec2(texelSize.x, 0.0)))) * 0.5;
+                float lumaY = (getLuma(texture2D(u_imageCurr, uv + vec2(0.0, texelSize.y))) -
+                               getLuma(texture2D(u_imageCurr, uv - vec2(0.0, texelSize.y)))) * 0.5;
 
-                // 3x3 Convolution neighborhood for localized high-frequency edge enhancement
-                float top    = getLuma(texture2D(u_image, uv + vec2(0.0, -texelSize.y)));
-                float bottom = getLuma(texture2D(u_image, uv + vec2(0.0,  texelSize.y)));
-                float left   = getLuma(texture2D(u_image, uv + vec2(-texelSize.x, 0.0)));
-                float right  = getLuma(texture2D(u_image, uv + vec2( texelSize.x, 0.0)));
+                vec2 grad = vec2(lumaX, lumaY);
+                float gradSq = dot(grad, grad) + 0.0001;
+                float lumaDelta = lumaCurr - lumaPrev;
+
+                // Motion vector clamped to ensure clean stability
+                vec2 motionVec = clamp(-((lumaDelta * grad) / gradSq) * texelSize, -texelSize * 3.0, texelSize * 3.0);
+
+                // 3. Bidirectional Temporal Motion-Compensated Interpolation
+                vec2 offsetPrev = motionVec * (1.0 - u_temporalPhase);
+                vec2 offsetCurr = -motionVec * u_temporalPhase;
+
+                // Subpixel sampling for Red channel
+                float rPrev = getLuma(texture2D(u_imagePrev, uvR + offsetPrev));
+                float rCurr = getLuma(texture2D(u_imageCurr, uvR + offsetCurr));
+                float centerR = mix(rPrev, rCurr, u_temporalPhase);
+
+                // Subpixel sampling for Green channel
+                float gPrev = getLuma(texture2D(u_imagePrev, uvG + offsetPrev));
+                float gCurr = getLuma(texture2D(u_imageCurr, uvG + offsetCurr));
+                float centerG = mix(gPrev, gCurr, u_temporalPhase);
+
+                // Subpixel sampling for Blue channel
+                float bPrev = getLuma(texture2D(u_imagePrev, uvB + offsetPrev));
+                float bCurr = getLuma(texture2D(u_imageCurr, uvB + offsetCurr));
+                float centerB = mix(bPrev, bCurr, u_temporalPhase);
+
+                // 4. High-Frequency 4-Neighbor Laplacian Subpixel Edge Reconstruction
+                float top    = mix(getLuma(texture2D(u_imagePrev, uv + vec2(0.0, -texelSize.y) + offsetPrev)),
+                                   getLuma(texture2D(u_imageCurr, uv + vec2(0.0, -texelSize.y) + offsetCurr)), u_temporalPhase);
+                float bottom = mix(getLuma(texture2D(u_imagePrev, uv + vec2(0.0,  texelSize.y) + offsetPrev)),
+                                   getLuma(texture2D(u_imageCurr, uv + vec2(0.0,  texelSize.y) + offsetCurr)), u_temporalPhase);
+                float left   = mix(getLuma(texture2D(u_imagePrev, uv + vec2(-texelSize.x, 0.0) + offsetPrev)),
+                                   getLuma(texture2D(u_imageCurr, uv + vec2(-texelSize.x, 0.0) + offsetCurr)), u_temporalPhase);
+                float right  = mix(getLuma(texture2D(u_imagePrev, uv + vec2( texelSize.x, 0.0) + offsetPrev)),
+                                   getLuma(texture2D(u_imageCurr, uv + vec2( texelSize.x, 0.0) + offsetCurr)), u_temporalPhase);
 
                 float surround = (top + bottom + left + right) * 0.25;
 
-                // Independent subpixel edge reconstruction
-                float edgeR = centerR - surround;
-                float edgeG = centerG - surround;
-                float edgeB = centerB - surround;
-
                 const float sharpness = 0.25;
-                float lumR = centerR + edgeR * sharpness;
-                float lumG = centerG + edgeG * sharpness;
-                float lumB = centerB + edgeB * sharpness;
+                float lumR = centerR + (centerR - surround) * sharpness;
+                float lumG = centerG + (centerG - surround) * sharpness;
+                float lumB = centerB + (centerB - surround) * sharpness;
 
-                // Contrast & gamma correction on pure luminance channels
                 vec3 finalLum = vec3(lumR, lumG, lumB);
                 finalLum = (finalLum - 0.5) * contrast + 0.5;
                 finalLum = pow(abs(finalLum), vec3(1.0 / gamma));
 
-                // Output physical subpixel grayscale matrix (Red, Green, Blue subpixels each emit distinct luminance)
+                // Output physical subpixel grayscale matrix
                 gl_FragColor = vec4(clamp(finalLum, 0.0, 1.0), 1.0);
             }
         `;
@@ -330,16 +360,29 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
         gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
         gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
 
-        const texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        let textureCurr = gl.createTexture();
+        let texturePrev = gl.createTexture();
+
+        function configureTexture(tex: WebGLTexture | null): void {
+            gl!.bindTexture(gl!.TEXTURE_2D, tex);
+            gl!.pixelStorei(gl!.UNPACK_FLIP_Y_WEBGL, true);
+            gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
+            gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
+            gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.LINEAR);
+            gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.LINEAR);
+        }
+        configureTexture(textureCurr);
+        configureTexture(texturePrev);
 
         const resolutionLocation = gl.getUniformLocation(shaderProgram, "u_resolution");
         const scaleLocation = gl.getUniformLocation(shaderProgram, "u_scale");
+        const imageCurrLocation = gl.getUniformLocation(shaderProgram, "u_imageCurr");
+        const imagePrevLocation = gl.getUniformLocation(shaderProgram, "u_imagePrev");
+        const temporalPhaseLocation = gl.getUniformLocation(shaderProgram, "u_temporalPhase");
+
+        let lastVideoTime = -1;
+        let frameStartTime = performance.now();
+        let estimatedFrameDuration = 33.33; // Default 30fps carrier interval (33ms)
 
         function renderLoop(): void {
             if (!videoElement.paused && !videoElement.ended && videoElement.videoWidth > 0) {
@@ -352,9 +395,44 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
                     gl!.viewport(0, 0, gl!.canvas.width, gl!.canvas.height);
                 }
 
-                gl!.bindTexture(gl!.TEXTURE_2D, texture);
-                gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, videoElement);
+                const now = performance.now();
 
+                // Detect when a new camera/network frame arrives
+                if (videoElement.currentTime !== lastVideoTime) {
+                    if (lastVideoTime >= 0) {
+                        const delta = now - frameStartTime;
+                        if (delta > 10 && delta < 200) {
+                            estimatedFrameDuration = estimatedFrameDuration * 0.7 + delta * 0.3;
+                        }
+                    }
+                    frameStartTime = now;
+                    lastVideoTime = videoElement.currentTime;
+
+                    // Ping-pong swap: previous texture becomes old current, new frame goes to current
+                    const temp = texturePrev;
+                    texturePrev = textureCurr;
+                    textureCurr = temp;
+
+                    gl!.activeTexture(gl!.TEXTURE0);
+                    gl!.bindTexture(gl!.TEXTURE_2D, textureCurr);
+                    gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, videoElement);
+                }
+
+                // Compute smooth temporal interpolation phase for 60 FPS rendering
+                const elapsed = now - frameStartTime;
+                const alpha = Math.min(Math.max(elapsed / Math.max(estimatedFrameDuration, 16.0), 0.0), 1.0);
+
+                // Bind current frame to texture unit 0
+                gl!.activeTexture(gl!.TEXTURE0);
+                gl!.bindTexture(gl!.TEXTURE_2D, textureCurr);
+                gl!.uniform1i(imageCurrLocation, 0);
+
+                // Bind previous frame to texture unit 1
+                gl!.activeTexture(gl!.TEXTURE1);
+                gl!.bindTexture(gl!.TEXTURE_2D, texturePrev);
+                gl!.uniform1i(imagePrevLocation, 1);
+
+                gl!.uniform1f(temporalPhaseLocation, alpha);
                 gl!.uniform2f(resolutionLocation, videoElement.videoWidth, videoElement.videoHeight);
 
                 const canvasAspect = displayWidth / displayHeight;
