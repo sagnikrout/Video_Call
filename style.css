@@ -94,6 +94,29 @@ body {
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6), 0 15px 35px rgba(0, 0, 0, 0.3) !important;
 }
 
+/* Auto-Talk Full-Duplex Speaking Aura Indicator */
+.full-bleed-bg.circular-portal-mode.speaking-aura {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.8), 0 0 80px rgba(59, 130, 246, 0.6), 0 25px 60px rgba(0, 0, 0, 0.3) !important;
+    border-color: rgba(96, 165, 250, 0.9) !important;
+    animation: speakingPulse 1.2s infinite alternate ease-in-out;
+}
+
+.pip-video.circular-portal-mode.speaking-aura {
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.85), 0 0 35px rgba(59, 130, 246, 0.5) !important;
+    border-color: rgba(96, 165, 250, 0.9) !important;
+    animation: speakingPulsePip 1.2s infinite alternate ease-in-out;
+}
+
+@keyframes speakingPulse {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    100% { transform: translate(-50%, -50%) scale(1.02); }
+}
+
+@keyframes speakingPulsePip {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.05); }
+}
+
 /* Monochromatic Low-Bandwidth Mode (Zero Chroma Noise & Sharp Luma) */
 .monochrome-mode {
     filter: grayscale(100%) contrast(110%) brightness(102%) !important;

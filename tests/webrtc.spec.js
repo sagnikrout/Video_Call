@@ -111,22 +111,23 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     const highBtn = page.locator('#btn-quality-high');
     const localVid = page.locator('#local-video');
 
-    // 1. Initially Cinema Widescreen with Pure Monochrome Active
-    await expect(videoContainer).not.toHaveClass(/circular-portal-mode/);
-    await expect(localTile).not.toHaveClass(/circular-portal-mode/);
-    await expect(localVid).toHaveClass(/monochrome-mode/);
-
-    // 2. Toggle to Circular Portal
-    await shapeBtn.click();
+    // 1. Initially Circular Portal with Pure Monochrome Active
     await expect(videoContainer).toHaveClass(/circular-portal-mode/);
     await expect(localTile).toHaveClass(/circular-portal-mode/);
     await expect(shapeBtn).toHaveAttribute('aria-pressed', 'true');
+    await expect(localVid).toHaveClass(/monochrome-mode/);
 
-    // 3. Toggle back to Widescreen
+    // 2. Toggle to Optimal Frame
     await shapeBtn.click();
     await expect(videoContainer).not.toHaveClass(/circular-portal-mode/);
     await expect(localTile).not.toHaveClass(/circular-portal-mode/);
     await expect(shapeBtn).toHaveAttribute('aria-pressed', 'false');
+
+    // 3. Toggle back to Circular Portal
+    await shapeBtn.click();
+    await expect(videoContainer).toHaveClass(/circular-portal-mode/);
+    await expect(localTile).toHaveClass(/circular-portal-mode/);
+    await expect(shapeBtn).toHaveAttribute('aria-pressed', 'true');
 
     // 4. Low-end Profile on 1080p Monochromatic Engine
     await lowBtn.click();

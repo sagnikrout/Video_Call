@@ -94,13 +94,21 @@ let currentQuality: QualityLevel = 'medium';
 let remotePeerId: string = '';
 let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-// In-Call UX & Screen Sharing state
+// In-Call UX & Audio Dynamics State
 let callStartTime: number | null = null;
 let callTimerInterval: ReturnType<typeof setInterval> | null = null;
-let isScreenSharing: boolean = false;
-let screenStream: MediaStream | null = null;
 let isMonochromeMode: boolean = true;
-let isCircularMode: boolean = false;
+let isCircularMode: boolean = true;
+
+// Auto-Talk Full-Duplex Audio Engine state
+let audioContext: AudioContext | null = null;
+let localAudioSource: MediaStreamAudioSourceNode | null = null;
+let localCompressorNode: DynamicsCompressorNode | null = null;
+let localHighpassNode: BiquadFilterNode | null = null;
+let localDestinationNode: MediaStreamAudioDestinationNode | null = null;
+let localAnalyserNode: AnalyserNode | null = null;
+let remoteAnalyserNode: AnalyserNode | null = null;
+let speechDetectionInterval: ReturnType<typeof setInterval> | null = null;
 
 // Companion Data Connection & Disconnect Synchronization
 let dataConnection: DataConnection | null = null;
@@ -109,23 +117,24 @@ let isIntentionalDisconnect: boolean = false;
 // Asynchronous mutex chain to queue quality modifications and prevent concurrent setParameters calls
 let qualityChangeQueue: Promise<void> = Promise.resolve();
 
+// Optimal sqrt(2) : 1 Sensor Geometry (1528 x 1080) - 94.3% Physical Silicon Harvest
 const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     high: {
-        width: 1920,
+        width: 1528,
         height: 1080,
         frameRate: 60, // 60 fps Ultra HFR (Strict >= 30 fps hardware floor)
         videoMaxBitrate: 6000000, // 6.0 Mbps Ultra 1080p
         audioMaxBitrate: 256000   // 256 kbps
     },
     medium: {
-        width: 1920,
+        width: 1528,
         height: 1080,
         frameRate: 30, // 30 fps carrier -> 60 fps extrapolated (Strict >= 30 fps floor)
         videoMaxBitrate: 4500000, // 4.5 Mbps Studio 1080p
         audioMaxBitrate: 128000   // 128 kbps
     },
     low: {
-        width: 1920,
+        width: 1528,
         height: 1080,
         frameRate: 30, // 30 fps carrier (Strict floor: nothing less than 30 fps)
         videoMaxBitrate: 2500000, // 2.5 Mbps Eco 1080p
@@ -507,7 +516,7 @@ function setVideoFitMode(mode: VideoFitMode): void {
 /**
  * Toggles Circular Portal framing vs Cinema Widescreen rectangle mode.
  */
-function setCircularMode(enable: boolean): void {
+function setCircularMode(enable: boolean, showNotification: boolean = true): void {
     isCircularMode = enable;
     const videoContainer = document.getElementById('video-container');
     const localTile = document.getElementById('local-video-tile');
@@ -530,7 +539,9 @@ function setCircularMode(enable: boolean): void {
     if (popoverShapeCircle) popoverShapeCircle.classList.toggle('active', enable);
     if (popoverShapeRect) popoverShapeRect.classList.toggle('active', !enable);
 
-    showToast(enable ? 'Circular Portal Mode Activated' : 'Cinema Widescreen Mode Activated', 'info');
+    if (showNotification) {
+        showToast(enable ? 'Circular Portal Mode Activated' : 'Optimal Frame Mode Activated', 'info');
+    }
 }
 
 /**
@@ -569,6 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 async function initializeApplication(): Promise<void> {
     setMonochromeMode(true);
+    setCircularMode(true, false);
     setupEventListeners();
     initializePeer();
     
@@ -776,6 +788,114 @@ function setupDataConnection(conn: DataConnection): void {
 }
 
 /**
+ * Auto-Talk Full-Duplex Audio Engine:
+ * Processes microphone audio with high-pass filtering (80Hz rumble cut),
+ * dynamic range compression (auto-leveling whispers and shouting),
+ * and real-time speech activity detection for visual speaking auras.
+ */
+function setupAutoTalkAudioEngine(stream: MediaStream): void {
+    try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!audioContext) {
+            audioContext = new AudioCtx();
+        }
+        if (audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => {});
+        }
+
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length === 0) return;
+
+        if (localAudioSource) {
+            try { localAudioSource.disconnect(); } catch (e) {}
+        }
+
+        localAudioSource = audioContext.createMediaStreamSource(stream);
+        localHighpassNode = audioContext.createBiquadFilter();
+        localHighpassNode.type = 'highpass';
+        localHighpassNode.frequency.value = 80;
+
+        localCompressorNode = audioContext.createDynamicsCompressor();
+        localCompressorNode.threshold.value = -24;
+        localCompressorNode.knee.value = 12;
+        localCompressorNode.ratio.value = 4;
+        localCompressorNode.attack.value = 0.003;
+        localCompressorNode.release.value = 0.25;
+
+        localAnalyserNode = audioContext.createAnalyser();
+        localAnalyserNode.fftSize = 256;
+        localAnalyserNode.smoothingTimeConstant = 0.4;
+
+        localAudioSource.connect(localHighpassNode);
+        localHighpassNode.connect(localCompressorNode);
+        localCompressorNode.connect(localAnalyserNode);
+
+        startSpeechActivityDetection();
+        console.log('Auto-Talk Full-Duplex Audio Engine active.');
+    } catch (e) {
+        console.warn('Auto-Talk audio engine setup warning:', e);
+    }
+}
+
+function setupRemoteAudioAnalysis(stream: MediaStream): void {
+    try {
+        if (!audioContext) {
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioCtx) audioContext = new AudioCtx();
+        }
+        if (!audioContext) return;
+        if (audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => {});
+        }
+
+        if (stream.getAudioTracks().length > 0) {
+            const remoteSource = audioContext.createMediaStreamSource(stream);
+            remoteAnalyserNode = audioContext.createAnalyser();
+            remoteAnalyserNode.fftSize = 256;
+            remoteAnalyserNode.smoothingTimeConstant = 0.4;
+            remoteSource.connect(remoteAnalyserNode);
+            console.log('Remote audio speech tracking initialized.');
+        }
+    } catch (e) {
+        console.warn('Remote audio analysis warning:', e);
+    }
+}
+
+function startSpeechActivityDetection(): void {
+    if (speechDetectionInterval) return;
+
+    const localTile = document.getElementById('local-video-tile');
+    const remoteContainer = document.getElementById('video-container');
+    const dataLocal = new Uint8Array(128);
+    const dataRemote = new Uint8Array(128);
+
+    speechDetectionInterval = setInterval(() => {
+        if (localAnalyserNode && localStream && localStream.getAudioTracks().some(t => t.enabled)) {
+            localAnalyserNode.getByteFrequencyData(dataLocal);
+            let sum = 0;
+            for (let i = 0; i < dataLocal.length; i++) sum += dataLocal[i];
+            const avg = sum / dataLocal.length;
+            if (localTile) {
+                if (avg > 16) localTile.classList.add('speaking-aura');
+                else localTile.classList.remove('speaking-aura');
+            }
+        }
+
+        if (remoteAnalyserNode) {
+            remoteAnalyserNode.getByteFrequencyData(dataRemote);
+            let sumR = 0;
+            for (let i = 0; i < dataRemote.length; i++) sumR += dataRemote[i];
+            const avgR = sumR / dataRemote.length;
+            if (remoteContainer) {
+                if (avgR > 16) remoteContainer.classList.add('speaking-aura');
+                else remoteContainer.classList.remove('speaking-aura');
+            }
+        }
+    }, 100);
+}
+
+/**
  * Requests camera and microphone hardware access via navigator.mediaDevices.getUserMedia.
  */
 async function requestMediaPermissions(): Promise<void> {
@@ -783,13 +903,14 @@ async function requestMediaPermissions(): Promise<void> {
         const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         const videoConstraints: MediaTrackConstraints = isMobileDevice 
             ? {
+                aspectRatio: { ideal: 1.41421356 },
                 frameRate: { ideal: QUALITY_PRESETS.medium.frameRate },
                 facingMode: { ideal: 'user' }
               }
             : {
                 width: { ideal: QUALITY_PRESETS.medium.width },
                 height: { ideal: QUALITY_PRESETS.medium.height },
-                aspectRatio: { ideal: 1.7777777778 },
+                aspectRatio: { ideal: 1.41421356 },
                 frameRate: { ideal: QUALITY_PRESETS.medium.frameRate }
               };
 
@@ -806,6 +927,7 @@ async function requestMediaPermissions(): Promise<void> {
 
         localStream = stream;
         if (localVideo) localVideo.srcObject = stream;
+        setupAutoTalkAudioEngine(stream);
         
         const localCamAvatar = document.getElementById('local-cam-off-avatar');
         if (localCamAvatar) localCamAvatar.classList.add('hidden');
@@ -1013,6 +1135,8 @@ async function switchMicrophone(deviceId: string): Promise<void> {
             localStream.addTrack(newAudioTrack);
         }
 
+        setupAutoTalkAudioEngine(newStream);
+
         if (currentCall && currentCall.peerConnection) {
             const senders = currentCall.peerConnection.getSenders();
             const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
@@ -1040,6 +1164,7 @@ async function switchCamera(deviceId: string): Promise<void> {
         const newStream = await navigator.mediaDevices.getUserMedia({
             video: {
                 deviceId: { exact: deviceId },
+                aspectRatio: { ideal: 1.41421356 },
                 width: { ideal: preset.width },
                 height: { ideal: preset.height },
                 frameRate: { ideal: preset.frameRate }
@@ -1148,11 +1273,6 @@ function setupEventListeners(): void {
         endCallDockBtn.addEventListener('click', () => {
             hangUpCall('Call Ended');
         });
-    }
-
-    const screenshareBtn = document.getElementById('screenshare-btn');
-    if (screenshareBtn) {
-        screenshareBtn.addEventListener('click', toggleScreenShare);
     }
 
     if (copyIdBtn) {
@@ -1423,6 +1543,7 @@ function attachRemoteStream(stream: MediaStream): void {
         remoteVideo.srcObject = stream;
         remoteVideo.play().catch(e => console.warn('Remote video playback auto-handled:', e));
     }
+    setupRemoteAudioAnalysis(stream);
     
     const upscaleCanvas = document.getElementById('upscale-canvas') as HTMLCanvasElement | null;
     if (upscaleCanvas && remoteVideo) {
@@ -1498,6 +1619,12 @@ function resetCallUI(statusMessage?: string): void {
 
     stopUpscaler();
 
+    const localTile = document.getElementById('local-video-tile');
+    const remoteContainer = document.getElementById('video-container');
+    if (localTile) localTile.classList.remove('speaking-aura');
+    if (remoteContainer) remoteContainer.classList.remove('speaking-aura');
+    remoteAnalyserNode = null;
+
     if (remoteVideo) remoteVideo.srcObject = null;
     if (remoteVideoPlaceholder) {
         remoteVideoPlaceholder.style.display = 'flex';
@@ -1549,7 +1676,6 @@ function updateCallUIState(inCall: boolean): void {
         if (dockInCallTools) dockInCallTools.classList.add('hidden');
 
         stopCallTimer();
-        if (isScreenSharing) stopScreenShare();
     }
 }
 
@@ -1581,78 +1707,6 @@ function stopCallTimer(): void {
     }
     const durationEl = document.getElementById('call-duration');
     if (durationEl) durationEl.textContent = '00:00';
-}
-
-/**
- * Toggles WebRTC screen sharing using navigator.mediaDevices.getDisplayMedia.
- */
-async function toggleScreenShare(): Promise<void> {
-    if (!currentCall || !currentCall.peerConnection) {
-        showToast('Screen sharing is available during an active call.', 'warning');
-        return;
-    }
-
-    if (isScreenSharing) {
-        await stopScreenShare();
-    } else {
-        try {
-            const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            screenStream = displayStream;
-            const screenTrack = displayStream.getVideoTracks()[0];
-
-            const senders = currentCall.peerConnection.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-                await videoSender.replaceTrack(screenTrack);
-            }
-
-            isScreenSharing = true;
-            const screenshareBtn = document.getElementById('screenshare-btn');
-            if (screenshareBtn) {
-                screenshareBtn.classList.add('inactive');
-                screenshareBtn.setAttribute('aria-pressed', 'true');
-            }
-            showToast('Screen sharing started', 'success');
-
-            screenTrack.onended = () => {
-                stopScreenShare();
-            };
-        } catch (err) {
-            console.error('Screen sharing error:', err);
-            showToast('Screen sharing cancelled', 'warning');
-        }
-    }
-}
-
-/**
- * Reverts screen share back to local camera hardware.
- */
-async function stopScreenShare(): Promise<void> {
-    if (!isScreenSharing) return;
-    isScreenSharing = false;
-
-    if (screenStream) {
-        screenStream.getTracks().forEach(track => track.stop());
-        screenStream = null;
-    }
-
-    if (localStream && currentCall && currentCall.peerConnection) {
-        const cameraTrack = localStream.getVideoTracks()[0];
-        if (cameraTrack) {
-            const senders = currentCall.peerConnection.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-                await videoSender.replaceTrack(cameraTrack);
-            }
-        }
-    }
-
-    const screenshareBtn = document.getElementById('screenshare-btn');
-    if (screenshareBtn) {
-        screenshareBtn.classList.remove('inactive');
-        screenshareBtn.setAttribute('aria-pressed', 'false');
-    }
-    showToast('Screen sharing stopped', 'info');
 }
 
 // ==========================================
@@ -1743,11 +1797,12 @@ async function executeQualityChange(qualityLevel: QualityLevel): Promise<void> {
         const videoTrack = localStream.getVideoTracks()[0];
         try {
             await videoTrack.applyConstraints({
+                aspectRatio: { ideal: 1.41421356 },
                 width: { ideal: preset.width },
                 height: { ideal: preset.height },
                 frameRate: { ideal: preset.frameRate }
             });
-            console.log(`Local video track constraints applied: ${preset.width}x${preset.height} @ ${preset.frameRate}fps`);
+            console.log(`Local video track constraints applied: ${preset.width}x${preset.height} @ ${preset.frameRate}fps (sqrt(2):1 optimal ratio)`);
         } catch (err) {
             console.warn('Could not apply video track hardware constraints:', err);
         }
@@ -1795,7 +1850,7 @@ async function executeQualityChange(qualityLevel: QualityLevel): Promise<void> {
 }
 
 // ==========================================
-// Codec Enforcement (AV1 / VP9 / Opus)
+// Codec Enforcement (Strict AV1 / VP9 Only & Opus)
 // ==========================================
 
 function enforcePreferredCodecs(peerConnection: RTCPeerConnection): void {
@@ -1808,16 +1863,14 @@ function enforcePreferredCodecs(peerConnection: RTCPeerConnection): void {
         let sortedVideoCodecs: any[] | null = null;
         if (videoCapabilities && videoCapabilities.codecs) {
             const preferredVideo: any[] = [];
-            const otherVideo: any[] = [];
             videoCapabilities.codecs.forEach(codec => {
                 const mimeType = codec.mimeType.toLowerCase();
+                // STRICTLY AV1 AND VP9 ONLY - NOTHING ELSE (NO H.264, NO VP8)
                 if (mimeType.includes('video/av1')) preferredVideo.push(codec);
                 else if (mimeType.includes('video/vp9')) preferredVideo.push(codec);
-                else if (mimeType.includes('video/h264')) preferredVideo.push(codec);
-                else otherVideo.push(codec);
             });
             if (preferredVideo.length > 0) {
-                sortedVideoCodecs = [...preferredVideo, ...otherVideo];
+                sortedVideoCodecs = preferredVideo;
             }
         }
 
@@ -1825,17 +1878,14 @@ function enforcePreferredCodecs(peerConnection: RTCPeerConnection): void {
         let sortedAudioCodecs: any[] | null = null;
         if (audioCapabilities && audioCapabilities.codecs) {
             const preferredAudio: any[] = [];
-            const otherAudio: any[] = [];
             audioCapabilities.codecs.forEach(codec => {
                 const mimeType = codec.mimeType.toLowerCase();
                 if (mimeType.includes('audio/opus')) {
                     preferredAudio.push(codec);
-                } else {
-                    otherAudio.push(codec);
                 }
             });
             if (preferredAudio.length > 0) {
-                sortedAudioCodecs = [...preferredAudio, ...otherAudio];
+                sortedAudioCodecs = preferredAudio;
             }
         }
 

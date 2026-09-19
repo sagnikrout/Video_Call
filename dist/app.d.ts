@@ -84,10 +84,16 @@ declare let remotePeerId: string;
 declare let reconnectTimeoutId: ReturnType<typeof setTimeout> | null;
 declare let callStartTime: number | null;
 declare let callTimerInterval: ReturnType<typeof setInterval> | null;
-declare let isScreenSharing: boolean;
-declare let screenStream: MediaStream | null;
 declare let isMonochromeMode: boolean;
 declare let isCircularMode: boolean;
+declare let audioContext: AudioContext | null;
+declare let localAudioSource: MediaStreamAudioSourceNode | null;
+declare let localCompressorNode: DynamicsCompressorNode | null;
+declare let localHighpassNode: BiquadFilterNode | null;
+declare let localDestinationNode: MediaStreamAudioDestinationNode | null;
+declare let localAnalyserNode: AnalyserNode | null;
+declare let remoteAnalyserNode: AnalyserNode | null;
+declare let speechDetectionInterval: ReturnType<typeof setInterval> | null;
 declare let dataConnection: DataConnection | null;
 declare let isIntentionalDisconnect: boolean;
 declare let qualityChangeQueue: Promise<void>;
@@ -137,7 +143,7 @@ declare function setVideoFitMode(mode: VideoFitMode): void;
 /**
  * Toggles Circular Portal framing vs Cinema Widescreen rectangle mode.
  */
-declare function setCircularMode(enable: boolean): void;
+declare function setCircularMode(enable: boolean, showNotification?: boolean): void;
 /**
  * Activates or deactivates Monochromatic (B&W) low-bandwidth rendering mode.
  */
@@ -159,6 +165,15 @@ declare function initializePeer(): void;
  * Binds signaling listeners to a companion PeerJS DataConnection for synchronized disconnection.
  */
 declare function setupDataConnection(conn: DataConnection): void;
+/**
+ * Auto-Talk Full-Duplex Audio Engine:
+ * Processes microphone audio with high-pass filtering (80Hz rumble cut),
+ * dynamic range compression (auto-leveling whispers and shouting),
+ * and real-time speech activity detection for visual speaking auras.
+ */
+declare function setupAutoTalkAudioEngine(stream: MediaStream): void;
+declare function setupRemoteAudioAnalysis(stream: MediaStream): void;
+declare function startSpeechActivityDetection(): void;
 /**
  * Requests camera and microphone hardware access via navigator.mediaDevices.getUserMedia.
  */
@@ -221,14 +236,6 @@ declare function startCallTimer(): void;
  * Stops the live duration timer and resets display.
  */
 declare function stopCallTimer(): void;
-/**
- * Toggles WebRTC screen sharing using navigator.mediaDevices.getDisplayMedia.
- */
-declare function toggleScreenShare(): Promise<void>;
-/**
- * Reverts screen share back to local camera hardware.
- */
-declare function stopScreenShare(): Promise<void>;
 declare function startTelemetry(): void;
 declare function stopTelemetry(): void;
 declare function setMediaQuality(qualityLevel: QualityLevel): Promise<void>;

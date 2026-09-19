@@ -38,7 +38,7 @@
         </header>
 
         <!-- Full Bleed Remote Video / Background -->
-        <div id="video-container" class="full-bleed-bg">
+        <div id="video-container" class="full-bleed-bg circular-portal-mode">
             <video id="remote-video" autoplay playsinline style="display: none;"></video>
             <canvas id="upscale-canvas"></canvas>
             
@@ -58,7 +58,7 @@
         </div>
 
         <!-- Floating Picture-in-Picture Local Video -->
-        <div id="local-video-tile" class="pip-video">
+        <div id="local-video-tile" class="pip-video circular-portal-mode">
             <video id="local-video" autoplay playsinline muted></video>
             <div id="local-cam-off-avatar" class="pip-avatar-fallback hidden">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
@@ -72,7 +72,7 @@
                 <button id="info-btn" class="toggle-btn" title="Connection Details & Telemetry" aria-label="Open connection details and telemetry" aria-expanded="false">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 </button>
-                <button id="shape-toggle-btn" class="toggle-btn" title="Toggle Circular Portal Mode" aria-label="Toggle circular portal mode" aria-pressed="false">
+                <button id="shape-toggle-btn" class="toggle-btn active" title="Toggle Circular Portal Mode" aria-label="Toggle circular portal mode" aria-pressed="true">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle></svg>
                 </button>
             </div>
@@ -114,11 +114,8 @@
                 </button>
             </div>
 
-            <!-- 3. Screen Share & Settings Group -->
+            <!-- 3. In-Call Settings Group -->
             <div id="dock-in-call-tools" class="dock-group in-call-only hidden">
-                <button id="screenshare-btn" class="toggle-btn" title="Share Screen" aria-label="Toggle screen sharing" aria-pressed="false">
-                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-                </button>
                 <button id="settings-btn" class="toggle-btn" title="Settings" aria-label="Open settings" aria-expanded="false">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 </button>
@@ -233,8 +230,8 @@
                 <div class="popover-section">
                     <label class="meta-label">FRAME GEOMETRY</label>
                     <div class="quality-pills-vertical" role="group" aria-label="Frame geometry settings">
-                        <button id="popover-shape-rect" class="quality-item-btn active" aria-label="Cinema Widescreen Rectangle">Cinema Widescreen (Rectangle)</button>
-                        <button id="popover-shape-circle" class="quality-item-btn" aria-label="Circular Portal Bandwidth Saver">Circular Portal (Bandwidth Saver)</button>
+                        <button id="popover-shape-circle" class="quality-item-btn active" aria-label="Circular Portal Bandwidth Saver">Circular Portal (Bandwidth Saver)</button>
+                        <button id="popover-shape-rect" class="quality-item-btn" aria-label="Optimal sqrt(2):1 Rectangle">Optimal &radic;2 : 1 Frame (1528&times;1080)</button>
                     </div>
                 </div>
                 <div class="popover-section">
