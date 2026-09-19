@@ -73,6 +73,8 @@ interface Window {
     initUpscaler?: (videoElement: HTMLVideoElement, canvasElement: HTMLCanvasElement) => void;
     setVideoFitMode?: (mode: VideoFitMode) => void;
     stopUpscaler?: () => void;
+    setCircularMode?: (enable: boolean) => void;
+    setMonochromeMode?: (enable: boolean) => void;
 }
 declare let peer: Peer | null;
 declare let currentCall: MediaConnection | null;
@@ -84,6 +86,8 @@ declare let callStartTime: number | null;
 declare let callTimerInterval: ReturnType<typeof setInterval> | null;
 declare let isScreenSharing: boolean;
 declare let screenStream: MediaStream | null;
+declare let isMonochromeMode: boolean;
+declare let isCircularMode: boolean;
 declare let dataConnection: DataConnection | null;
 declare let isIntentionalDisconnect: boolean;
 declare let qualityChangeQueue: Promise<void>;
@@ -130,6 +134,14 @@ declare function stopUpscaler(): void;
  * Updates the WebGL video view mode ('contain' = Fit to Frame uncropped, 'cover' = Fill Screen).
  */
 declare function setVideoFitMode(mode: VideoFitMode): void;
+/**
+ * Toggles Circular Portal framing vs Cinema Widescreen rectangle mode.
+ */
+declare function setCircularMode(enable: boolean): void;
+/**
+ * Activates or deactivates Monochromatic (B&W) low-bandwidth rendering mode.
+ */
+declare function setMonochromeMode(enable: boolean): void;
 /**
  * Main initialization workflow: setup event listeners, PeerJS signaling, drag engine, and request media hardware.
  */

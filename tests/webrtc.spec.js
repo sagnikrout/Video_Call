@@ -101,4 +101,41 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await expect(highBtn).not.toHaveClass(/active/);
   });
 
+  test('6. Circular Portal Geometry & Low-End B&W Mode', async ({ page }) => {
+    await page.goto('/');
+
+    const shapeBtn = page.locator('#shape-toggle-btn');
+    const videoContainer = page.locator('#video-container');
+    const localTile = page.locator('#local-video-tile');
+    const lowBtn = page.locator('#btn-quality-low');
+    const highBtn = page.locator('#btn-quality-high');
+    const localVid = page.locator('#local-video');
+
+    // 1. Initially Cinema Widescreen
+    await expect(videoContainer).not.toHaveClass(/circular-portal-mode/);
+    await expect(localTile).not.toHaveClass(/circular-portal-mode/);
+
+    // 2. Toggle to Circular Portal
+    await shapeBtn.click();
+    await expect(videoContainer).toHaveClass(/circular-portal-mode/);
+    await expect(localTile).toHaveClass(/circular-portal-mode/);
+    await expect(shapeBtn).toHaveAttribute('aria-pressed', 'true');
+
+    // 3. Toggle back to Widescreen
+    await shapeBtn.click();
+    await expect(videoContainer).not.toHaveClass(/circular-portal-mode/);
+    await expect(localTile).not.toHaveClass(/circular-portal-mode/);
+    await expect(shapeBtn).toHaveAttribute('aria-pressed', 'false');
+
+    // 4. Low-end B&W Mode on Quality Low
+    await lowBtn.click();
+    await expect(localVid).toHaveClass(/monochrome-mode/);
+    await expect(page.locator('.toast-item.toast-info').last()).toHaveText(/Quality set to Low/);
+
+    // 5. Restore full color on High/Medium
+    await highBtn.click();
+    await expect(localVid).not.toHaveClass(/monochrome-mode/);
+  });
+
 });
+

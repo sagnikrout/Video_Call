@@ -58,6 +58,22 @@ body {
     height: 100vh;
     z-index: 0;
     background-color: transparent;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Circular Portal Geometry (Focused Face & Bandwidth Optimization) */
+.full-bleed-bg.circular-portal-mode {
+    position: fixed;
+    top: calc(50% - 1.5rem);
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(72vh, 72vw);
+    height: min(72vh, 72vw);
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.5), 0 0 60px rgba(59, 130, 246, 0.3), 0 25px 60px rgba(0, 0, 0, 0.25);
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    z-index: 5;
 }
 
 #remote-video,
@@ -65,6 +81,21 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: filter 0.5s ease;
+}
+
+/* Picture-in-Picture Circular Portal Mode */
+.pip-video.circular-portal-mode {
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 50% !important;
+    width: 160px !important;
+    height: 160px !important;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.6), 0 15px 35px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Monochromatic Low-Bandwidth Mode (Zero Chroma Noise & Sharp Luma) */
+.monochrome-mode {
+    filter: grayscale(100%) contrast(110%) brightness(102%) !important;
 }
 
 .video-overlay-info {
@@ -135,6 +166,7 @@ body {
     height: 100%;
     object-fit: cover;
     transform: scaleX(-1); /* Mirror local video */
+    transition: filter 0.5s ease;
 }
 
 /* Picture in Picture Local Video & Avatar Fallback */
@@ -484,6 +516,14 @@ body {
     background: var(--danger);
     color: white;
     border-color: var(--danger);
+}
+.toggle-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+.toggle-btn.active .btn-icon {
+    stroke: white;
 }
 .btn-icon { width: 18px; height: 18px; }
 .btn-icon, .toggle-btn.inactive .btn-icon { stroke: currentColor; }

@@ -67,10 +67,13 @@
 
         <!-- Floating Minimalist Dock -->
         <nav id="control-panel" class="floating-dock" aria-label="Call controls">
-            <!-- 1. Info / Telemetry Dock Button -->
+            <!-- 1. Info & Geometry Dock Buttons -->
             <div class="dock-group">
                 <button id="info-btn" class="toggle-btn" title="Connection Details & Telemetry" aria-label="Open connection details and telemetry" aria-expanded="false">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </button>
+                <button id="shape-toggle-btn" class="toggle-btn" title="Toggle Circular Portal Mode" aria-label="Toggle circular portal mode" aria-pressed="false">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle></svg>
                 </button>
             </div>
 
@@ -126,7 +129,7 @@
                 <div class="quality-pills">
                     <button id="btn-quality-high" class="quality-btn" aria-label="1440p Quad HD">1440p</button>
                     <button id="btn-quality-medium" class="quality-btn active" aria-label="1080p Full HD">1080p</button>
-                    <button id="btn-quality-low" class="quality-btn" aria-label="720p HD">720p</button>
+                    <button id="btn-quality-low" class="quality-btn" aria-label="720p HD (B&W)" title="720p Low (Monochrome Bandwidth Saver)">720p (B&W)</button>
                 </div>
             </div>
         </nav>
@@ -224,15 +227,22 @@
         <!-- Settings Popover -->
         <div id="settings-popover" class="dock-popover settings-popover settings-anchored-popover hidden" role="dialog" aria-label="Stream Settings">
             <div class="popover-header">
-                <h3>Stream Quality</h3>
+                <h3>Video & Stream Settings</h3>
             </div>
             <div class="popover-body">
                 <div class="popover-section">
-                    <label class="meta-label">VIDEO RESOLUTION</label>
+                    <label class="meta-label">FRAME GEOMETRY</label>
+                    <div class="quality-pills-vertical" role="group" aria-label="Frame geometry settings">
+                        <button id="popover-shape-rect" class="quality-item-btn active" aria-label="Cinema Widescreen Rectangle">Cinema Widescreen (Rectangle)</button>
+                        <button id="popover-shape-circle" class="quality-item-btn" aria-label="Circular Portal Bandwidth Saver">Circular Portal (Bandwidth Saver)</button>
+                    </div>
+                </div>
+                <div class="popover-section">
+                    <label class="meta-label">VIDEO RESOLUTION & COLOR</label>
                     <div class="quality-pills-vertical" role="group" aria-label="Quality settings">
-                        <button id="popover-quality-high" class="quality-item-btn" aria-label="1440p Quad HD 8 Mbps">1440p Quad HD (8.0 Mbps)</button>
-                        <button id="popover-quality-medium" class="quality-item-btn active" aria-label="1080p Full HD 4 Mbps">1080p Full HD (4.0 Mbps)</button>
-                        <button id="popover-quality-low" class="quality-item-btn" aria-label="720p HD 1.5 Mbps">720p HD (1.5 Mbps)</button>
+                        <button id="popover-quality-high" class="quality-item-btn" aria-label="1440p Quad HD 8 Mbps">1440p Quad HD (8.0 Mbps - Full Color)</button>
+                        <button id="popover-quality-medium" class="quality-item-btn active" aria-label="1080p Full HD 4 Mbps">1080p Full HD (4.0 Mbps - Full Color)</button>
+                        <button id="popover-quality-low" class="quality-item-btn" aria-label="720p HD 1.5 Mbps">720p HD (1.5 Mbps - B&W Saver)</button>
                     </div>
                 </div>
             </div>

@@ -17,6 +17,8 @@ let callStartTime = null;
 let callTimerInterval = null;
 let isScreenSharing = false;
 let screenStream = null;
+let isMonochromeMode = false;
+let isCircularMode = false;
 // Companion Data Connection & Disconnect Synchronization
 let dataConnection = null;
 let isIntentionalDisconnect = false;
@@ -113,6 +115,7 @@ function initUpscaler(videoElement, canvasElement) {
             uniform sampler2D u_image;
             uniform vec2 u_resolution;
             uniform vec2 u_scale;
+            uniform float u_grayscale;
             varying vec2 v_texCoord;
 
             const float gamma = 1.05;
@@ -144,6 +147,11 @@ function initUpscaler(videoElement, canvasElement) {
 
                 color.rgb = (color.rgb - 0.5) * contrast + 0.5;
                 color.rgb = pow(abs(color.rgb), vec3(1.0 / gamma));
+
+                if (u_grayscale > 0.0) {
+                    float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+                    color.rgb = mix(color.rgb, vec3(luma), u_grayscale);
+                }
 
                 gl_FragColor = clamp(color, 0.0, 1.0);
                 gl_FragColor.a = 1.0;
@@ -211,6 +219,7 @@ function initUpscaler(videoElement, canvasElement) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         const resolutionLocation = gl.getUniformLocation(shaderProgram, "u_resolution");
         const scaleLocation = gl.getUniformLocation(shaderProgram, "u_scale");
+        const grayscaleLocation = gl.getUniformLocation(shaderProgram, "u_grayscale");
         function renderLoop() {
             if (!videoElement.paused && !videoElement.ended && videoElement.videoWidth > 0) {
                 const displayWidth = canvasElement.clientWidth * (window.devicePixelRatio || 1);
@@ -223,6 +232,7 @@ function initUpscaler(videoElement, canvasElement) {
                 gl.bindTexture(gl.TEXTURE_2D, texture);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
                 gl.uniform2f(resolutionLocation, videoElement.videoWidth, videoElement.videoHeight);
+                gl.uniform1f(grayscaleLocation, isMonochromeMode ? 1.0 : 0.0);
                 const canvasAspect = displayWidth / displayHeight;
                 const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
                 let scaleX = 1.0;
@@ -287,10 +297,61 @@ function setVideoFitMode(mode) {
         console.log(`WebGL Video Fit Mode set to: ${mode}`);
     }
 }
+/**
+ * Toggles Circular Portal framing vs Cinema Widescreen rectangle mode.
+ */
+function setCircularMode(enable) {
+    isCircularMode = enable;
+    const videoContainer = document.getElementById('video-container');
+    const localTile = document.getElementById('local-video-tile');
+    const shapeBtn = document.getElementById('shape-toggle-btn');
+    const popoverShapeCircle = document.getElementById('popover-shape-circle');
+    const popoverShapeRect = document.getElementById('popover-shape-rect');
+    if (videoContainer) {
+        if (enable)
+            videoContainer.classList.add('circular-portal-mode');
+        else
+            videoContainer.classList.remove('circular-portal-mode');
+    }
+    if (localTile) {
+        if (enable)
+            localTile.classList.add('circular-portal-mode');
+        else
+            localTile.classList.remove('circular-portal-mode');
+    }
+    if (shapeBtn) {
+        shapeBtn.setAttribute('aria-pressed', String(enable));
+        shapeBtn.classList.toggle('active', enable);
+    }
+    if (popoverShapeCircle)
+        popoverShapeCircle.classList.toggle('active', enable);
+    if (popoverShapeRect)
+        popoverShapeRect.classList.toggle('active', !enable);
+    showToast(enable ? 'Circular Portal Mode Activated' : 'Cinema Widescreen Mode Activated', 'info');
+}
+/**
+ * Activates or deactivates Monochromatic (B&W) low-bandwidth rendering mode.
+ */
+function setMonochromeMode(enable) {
+    isMonochromeMode = enable;
+    const remoteVid = document.getElementById('remote-video');
+    const upscaleCvs = document.getElementById('upscale-canvas');
+    const localVid = document.getElementById('local-video');
+    [remoteVid, upscaleCvs, localVid].forEach(el => {
+        if (el) {
+            if (enable)
+                el.classList.add('monochrome-mode');
+            else
+                el.classList.remove('monochrome-mode');
+        }
+    });
+}
 // Global exposure for backward compatibility
 window.initUpscaler = initUpscaler;
 window.setVideoFitMode = setVideoFitMode;
 window.stopUpscaler = stopUpscaler;
+window.setCircularMode = setCircularMode;
+window.setMonochromeMode = setMonochromeMode;
 // ==========================================
 // Initialization & Hardware Permission Logic
 // ==========================================
@@ -863,6 +924,26 @@ function setupEventListeners() {
         popoverQualityMedium.addEventListener('click', () => { setMediaQuality('medium'); updatePopoverQualityButtons('medium'); });
     if (popoverQualityLow)
         popoverQualityLow.addEventListener('click', () => { setMediaQuality('low'); updatePopoverQualityButtons('low'); });
+    const shapeToggleBtn = document.getElementById('shape-toggle-btn');
+    if (shapeToggleBtn) {
+        shapeToggleBtn.addEventListener('click', () => {
+            setCircularMode(!isCircularMode);
+        });
+    }
+    const popoverShapeCircle = document.getElementById('popover-shape-circle');
+    if (popoverShapeCircle) {
+        popoverShapeCircle.addEventListener('click', () => {
+            if (!isCircularMode)
+                setCircularMode(true);
+        });
+    }
+    const popoverShapeRect = document.getElementById('popover-shape-rect');
+    if (popoverShapeRect) {
+        popoverShapeRect.addEventListener('click', () => {
+            if (isCircularMode)
+                setCircularMode(false);
+        });
+    }
     if (toggleMicBtn) {
         toggleMicBtn.addEventListener('click', handleMicrophoneToggle);
     }
@@ -1417,7 +1498,14 @@ async function executeQualityChange(qualityLevel) {
             }
         }
     }
-    showToast(`Quality set to ${qualityLevel.charAt(0).toUpperCase() + qualityLevel.slice(1)}`, 'info');
+    if (qualityLevel === 'low') {
+        setMonochromeMode(true);
+        showToast('Quality set to Low (B&W Bandwidth Saver)', 'info');
+    }
+    else {
+        setMonochromeMode(false);
+        showToast(`Quality set to ${qualityLevel.charAt(0).toUpperCase() + qualityLevel.slice(1)}`, 'info');
+    }
 }
 // ==========================================
 // Codec Enforcement (AV1 / VP9 / Opus)
