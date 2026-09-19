@@ -44,16 +44,14 @@ sequenceDiagram
 
 ## 🛠️ Codebase Structure
 
-To make this codebase easily understandable for new developers, it is strictly separated by concern:
+The codebase is streamlined and modular with zero external build-tool overhead:
 
 | File | Purpose |
 |------|---------|
-| `index.html` | The core layout. Implements a minimalist, glassmorphic UI. |
-| `style.css` | Handles all aesthetics, CSS variables for theming, and responsive layouts. |
-| `app.js` | The monolithic logic controller. Handles `getUserMedia`, `PeerJS` signaling, transceiver codec injection, and device enumeration. |
-| `upscaler.js` | The WebGL rendering engine. Intercepts the HTML `<video>` stream and pipes it through a custom GPU fragment shader for sharpening. |
-| `debug.js` | Diagnostics tool. Monitors ICE states and outputs to the console. |
-| `stress.js` | Synthetic CPU/Memory load generator for testing application resilience. |
+| `index.html` | Core layout featuring a responsive glassmorphic dock, anchored popovers, and draggable local preview. |
+| `style.css` | Comprehensive design token system, responsive single-row dock for mobile/desktop, and dark glass styling. |
+| `app.js` | Consolidated client runtime: WebRTC signaling, OpenRelay TURN traversal, WebGL 3x3 Laplacian shader, device selection, and telemetry. |
+| `tests/webrtc.spec.js` | Automated Playwright test suite validating signaling handshakes, device enumeration, media toggles, and bitrate switching. |
 
 ---
 
