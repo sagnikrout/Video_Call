@@ -88,6 +88,7 @@ declare let audioContext: AudioContext | null;
 declare let localAudioSource: MediaStreamAudioSourceNode | null;
 declare let localCompressorNode: DynamicsCompressorNode | null;
 declare let localHighpassNode: BiquadFilterNode | null;
+declare let localPresenceNode: BiquadFilterNode | null;
 declare let localDestinationNode: MediaStreamAudioDestinationNode | null;
 declare let localAnalyserNode: AnalyserNode | null;
 declare let remoteAnalyserNode: AnalyserNode | null;

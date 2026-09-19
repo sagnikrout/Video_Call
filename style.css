@@ -72,13 +72,23 @@ body {
 
 /* Auto-Talk Full-Duplex Speaking Aura Indicator */
 .full-bleed-bg.speaking-aura {
-    box-shadow: inset 0 0 80px rgba(59, 130, 246, 0.45);
+    box-shadow: inset 0 0 100px rgba(59, 130, 246, 0.4), inset 0 0 30px rgba(255, 255, 255, 0.15);
+    animation: aura-breathe 2.4s ease-in-out infinite alternate;
 }
 
 .pip-video.speaking-aura {
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.9), 0 0 30px rgba(59, 130, 246, 0.6) !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.9), 0 0 35px rgba(59, 130, 246, 0.65), 0 0 15px rgba(255, 255, 255, 0.3) !important;
     border-color: rgba(96, 165, 250, 0.95) !important;
     transform: scale(1.02);
+}
+
+@keyframes aura-breathe {
+    0% {
+        box-shadow: inset 0 0 70px rgba(59, 130, 246, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.1);
+    }
+    100% {
+        box-shadow: inset 0 0 120px rgba(59, 130, 246, 0.55), inset 0 0 45px rgba(255, 255, 255, 0.25);
+    }
 }
 
 /* Monochromatic Low-Bandwidth Mode (Zero Chroma Noise & Sharp Luma) */
@@ -122,7 +132,7 @@ body {
     top: 1.5rem;
     right: 1.5rem;
     width: 220px;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 1.41421356 / 1;
     z-index: 50;
     border-radius: var(--radius-md);
     overflow: hidden;

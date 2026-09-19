@@ -21,6 +21,7 @@ let audioContext = null;
 let localAudioSource = null;
 let localCompressorNode = null;
 let localHighpassNode = null;
+let localPresenceNode = null;
 let localDestinationNode = null;
 let localAnalyserNode = null;
 let remoteAnalyserNode = null;
@@ -122,18 +123,32 @@ function initUpscaler(videoElement, canvasElement) {
             uniform sampler2D u_imageCurr;
             uniform sampler2D u_imagePrev;
             uniform float u_temporalPhase;
+            uniform float u_time;
             uniform vec2 u_resolution;
             uniform vec2 u_scale;
             varying vec2 v_texCoord;
 
-            const float gamma = 1.05;
-            const float contrast = 1.15;
-
-            // Rec.709 ITU High-Precision Luma Weights for Pure Black & White
+            // Rec.709 ITU High-Precision Luma Weights for Pure Monochrom
             const vec3 lumaWeights = vec3(0.2126, 0.7152, 0.0722);
 
             float getLuma(vec4 color) {
                 return dot(color.rgb, lumaWeights);
+            }
+
+            // High-frequency pseudo-random hash for organic 35mm silver-halide micro-grain
+            float hash21(vec2 p) {
+                p = fract(p * vec2(123.34, 456.21));
+                p += dot(p, p + 45.32);
+                return fract(p.x * p.y);
+            }
+
+            // Leica Monochrom filmic tone curve: gentle shadow toe, rich midtones, soft highlight shoulder
+            float filmicTone(float x) {
+                x = clamp(x, 0.0, 1.0);
+                // Cubic Hermite S-curve
+                float s = x * x * (3.0 - 2.0 * x);
+                // Blend between linear and filmic curve for optimal portrait contrast
+                return mix(x, s, 0.72);
             }
 
             void main() {
@@ -169,26 +184,19 @@ function initUpscaler(videoElement, canvasElement) {
                 vec2 motionVec = clamp(-((lumaDelta * grad) / gradSq) * texelSize, -texelSize * 3.0, texelSize * 3.0);
 
                 // 3. Forward Motion Vector Extrapolation (30 fps -> 60 fps double-rate synthesis)
-                // Extrapolates forward trajectory along velocity vector for in-between sub-frames
                 vec2 offsetPrev = motionVec * (1.0 - u_temporalPhase * 0.5);
                 vec2 offsetCurr = -motionVec * (u_temporalPhase * 0.5);
 
-                // Subpixel sampling for Red channel
-                float rPrev = getLuma(texture2D(u_imagePrev, uvR + offsetPrev));
-                float rCurr = getLuma(texture2D(u_imageCurr, uvR + offsetCurr));
-                float centerR = mix(rPrev, rCurr, u_temporalPhase);
+                // Subpixel sampling for Red, Green, Blue channels
+                float centerR = mix(getLuma(texture2D(u_imagePrev, uvR + offsetPrev)),
+                                    getLuma(texture2D(u_imageCurr, uvR + offsetCurr)), u_temporalPhase);
+                float centerG = mix(getLuma(texture2D(u_imagePrev, uvG + offsetPrev)),
+                                    getLuma(texture2D(u_imageCurr, uvG + offsetCurr)), u_temporalPhase);
+                float centerB = mix(getLuma(texture2D(u_imagePrev, uvB + offsetPrev)),
+                                    getLuma(texture2D(u_imageCurr, uvB + offsetCurr)), u_temporalPhase);
 
-                // Subpixel sampling for Green channel
-                float gPrev = getLuma(texture2D(u_imagePrev, uvG + offsetPrev));
-                float gCurr = getLuma(texture2D(u_imageCurr, uvG + offsetCurr));
-                float centerG = mix(gPrev, gCurr, u_temporalPhase);
-
-                // Subpixel sampling for Blue channel
-                float bPrev = getLuma(texture2D(u_imagePrev, uvB + offsetPrev));
-                float bCurr = getLuma(texture2D(u_imageCurr, uvB + offsetCurr));
-                float centerB = mix(bPrev, bCurr, u_temporalPhase);
-
-                // 4. High-Frequency 4-Neighbor Laplacian Subpixel Edge Reconstruction
+                // 4. Isotropic 8-Neighbor Spatial Deconvolution (Unsharp Mask Kernel)
+                // Orthogonal samples (weight 1.0)
                 float top    = mix(getLuma(texture2D(u_imagePrev, uv + vec2(0.0, -texelSize.y) + offsetPrev)),
                                    getLuma(texture2D(u_imageCurr, uv + vec2(0.0, -texelSize.y) + offsetCurr)), u_temporalPhase);
                 float bottom = mix(getLuma(texture2D(u_imagePrev, uv + vec2(0.0,  texelSize.y) + offsetPrev)),
@@ -198,16 +206,46 @@ function initUpscaler(videoElement, canvasElement) {
                 float right  = mix(getLuma(texture2D(u_imagePrev, uv + vec2( texelSize.x, 0.0) + offsetPrev)),
                                    getLuma(texture2D(u_imageCurr, uv + vec2( texelSize.x, 0.0) + offsetCurr)), u_temporalPhase);
 
-                float surround = (top + bottom + left + right) * 0.25;
+                // Diagonal samples (weight 0.7071 for true radial isotropy)
+                float tl = mix(getLuma(texture2D(u_imagePrev, uv + vec2(-texelSize.x, -texelSize.y) + offsetPrev)),
+                               getLuma(texture2D(u_imageCurr, uv + vec2(-texelSize.x, -texelSize.y) + offsetCurr)), u_temporalPhase);
+                float tr = mix(getLuma(texture2D(u_imagePrev, uv + vec2( texelSize.x, -texelSize.y) + offsetPrev)),
+                               getLuma(texture2D(u_imageCurr, uv + vec2( texelSize.x, -texelSize.y) + offsetCurr)), u_temporalPhase);
+                float bl = mix(getLuma(texture2D(u_imagePrev, uv + vec2(-texelSize.x,  texelSize.y) + offsetPrev)),
+                               getLuma(texture2D(u_imageCurr, uv + vec2(-texelSize.x,  texelSize.y) + offsetCurr)), u_temporalPhase);
+                float br = mix(getLuma(texture2D(u_imagePrev, uv + vec2( texelSize.x,  texelSize.y) + offsetPrev)),
+                               getLuma(texture2D(u_imageCurr, uv + vec2( texelSize.x,  texelSize.y) + offsetCurr)), u_temporalPhase);
 
-                const float sharpness = 0.25;
+                // Total weight = 4 * 1.0 + 4 * 0.70710678 = 6.828427
+                float surround = ((top + bottom + left + right) + (tl + tr + bl + br) * 0.70710678) * 0.1464466;
+
+                // Deconvolution edge sharpening
+                const float sharpness = 0.32;
                 float lumR = centerR + (centerR - surround) * sharpness;
                 float lumG = centerG + (centerG - surround) * sharpness;
                 float lumB = centerB + (centerB - surround) * sharpness;
 
-                vec3 finalLum = vec3(lumR, lumG, lumB);
-                finalLum = (finalLum - 0.5) * contrast + 0.5;
-                finalLum = pow(abs(finalLum), vec3(1.0 / gamma));
+                // 5. Specular Halation Bloom (Ethereal photonic glow on highlights > 0.72)
+                float highlightExcess = max(0.0, surround - 0.72);
+                float bloom = highlightExcess * highlightExcess * 0.55;
+                lumR += bloom;
+                lumG += bloom;
+                lumB += bloom;
+
+                // 6. Leica Monochrom Filmic S-Curve Tone Mapping
+                lumR = filmicTone(lumR);
+                lumG = filmicTone(lumG);
+                lumB = filmicTone(lumB);
+
+                // 7. 35mm Silver-Halide Organic Micro-Grain (Sub-perceptual dither)
+                // Modulated by screen coordinate hash and temporal phase
+                float grain = (hash21(gl_FragCoord.xy + fract(u_time * 23.456)) - 0.5);
+                // Micro-grain is strongest in midtones, gracefully attenuating in deep blacks and bright highlights
+                float midtoneMask = 1.0 - 2.0 * abs(lumG - 0.5);
+                midtoneMask = max(0.0, midtoneMask);
+                float grainAmt = grain * 0.024 * midtoneMask;
+
+                vec3 finalLum = vec3(lumR + grainAmt, lumG + grainAmt, lumB + grainAmt);
 
                 // Output physical subpixel grayscale matrix
                 gl_FragColor = vec4(clamp(finalLum, 0.0, 1.0), 1.0);
@@ -283,6 +321,7 @@ function initUpscaler(videoElement, canvasElement) {
         const imageCurrLocation = gl.getUniformLocation(shaderProgram, "u_imageCurr");
         const imagePrevLocation = gl.getUniformLocation(shaderProgram, "u_imagePrev");
         const temporalPhaseLocation = gl.getUniformLocation(shaderProgram, "u_temporalPhase");
+        const timeLocation = gl.getUniformLocation(shaderProgram, "u_time");
         let lastVideoTime = -1;
         let frameStartTime = performance.now();
         let estimatedFrameDuration = 33.33; // Default 30fps carrier interval (33.33ms, nothing less than 30fps)
@@ -326,6 +365,7 @@ function initUpscaler(videoElement, canvasElement) {
                 gl.bindTexture(gl.TEXTURE_2D, texturePrev);
                 gl.uniform1i(imagePrevLocation, 1);
                 gl.uniform1f(temporalPhaseLocation, alpha);
+                gl.uniform1f(timeLocation, now * 0.001);
                 gl.uniform2f(resolutionLocation, videoElement.videoWidth, videoElement.videoHeight);
                 const canvasAspect = displayWidth / displayHeight;
                 const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
@@ -630,6 +670,12 @@ function setupAutoTalkAudioEngine(stream) {
         localHighpassNode = audioContext.createBiquadFilter();
         localHighpassNode.type = 'highpass';
         localHighpassNode.frequency.value = 80;
+        // Vocal Presence Peaking EQ (+2.2 dB at 3.2 kHz, Q=1.4) for crisp vocal intelligibility and intimacy
+        localPresenceNode = audioContext.createBiquadFilter();
+        localPresenceNode.type = 'peaking';
+        localPresenceNode.frequency.value = 3200;
+        localPresenceNode.Q.value = 1.4;
+        localPresenceNode.gain.value = 2.2;
         localCompressorNode = audioContext.createDynamicsCompressor();
         localCompressorNode.threshold.value = -24;
         localCompressorNode.knee.value = 12;
@@ -640,7 +686,8 @@ function setupAutoTalkAudioEngine(stream) {
         localAnalyserNode.fftSize = 256;
         localAnalyserNode.smoothingTimeConstant = 0.4;
         localAudioSource.connect(localHighpassNode);
-        localHighpassNode.connect(localCompressorNode);
+        localHighpassNode.connect(localPresenceNode);
+        localPresenceNode.connect(localCompressorNode);
         localCompressorNode.connect(localAnalyserNode);
         startSpeechActivityDetection();
         console.log('Auto-Talk Full-Duplex Audio Engine active.');
