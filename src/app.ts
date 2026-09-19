@@ -113,22 +113,22 @@ const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     high: {
         width: 1920,
         height: 1080,
-        frameRate: 30, // 30 fps carrier -> 60 fps MEMC
-        videoMaxBitrate: 5000000, // 5.0 Mbps Ultra 1080p
+        frameRate: 24, // 24 fps cinematic carrier -> 48 fps HFR extrapolated
+        videoMaxBitrate: 4500000, // 4.5 Mbps Ultra 1080p
         audioMaxBitrate: 256000   // 256 kbps
     },
     medium: {
         width: 1920,
         height: 1080,
-        frameRate: 30, // 30 fps carrier -> 60 fps MEMC
-        videoMaxBitrate: 4000000, // 4.0 Mbps Studio 1080p
+        frameRate: 24, // 24 fps cinematic carrier -> 48 fps HFR extrapolated
+        videoMaxBitrate: 3500000, // 3.5 Mbps Studio 1080p
         audioMaxBitrate: 128000   // 128 kbps
     },
     low: {
         width: 1920,
         height: 1080,
-        frameRate: 15, // 15 fps carrier -> 60 fps MEMC
-        videoMaxBitrate: 2000000, // 2.0 Mbps Eco 1080p
+        frameRate: 12, // 12 fps carrier -> 24/48 fps extrapolated (Eco mode)
+        videoMaxBitrate: 1800000, // 1.8 Mbps Eco 1080p
         audioMaxBitrate: 64000    // 64 kbps
     }
 };
@@ -256,9 +256,10 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
                 // Motion vector clamped to ensure clean stability
                 vec2 motionVec = clamp(-((lumaDelta * grad) / gradSq) * texelSize, -texelSize * 3.0, texelSize * 3.0);
 
-                // 3. Bidirectional Temporal Motion-Compensated Interpolation
-                vec2 offsetPrev = motionVec * (1.0 - u_temporalPhase);
-                vec2 offsetCurr = -motionVec * u_temporalPhase;
+                // 3. Forward Motion Vector Extrapolation (24 fps -> 48 fps double-rate synthesis)
+                // Extrapolates forward trajectory along velocity vector for in-between sub-frames
+                vec2 offsetPrev = motionVec * (1.0 - u_temporalPhase * 0.5);
+                vec2 offsetCurr = -motionVec * (u_temporalPhase * 0.5);
 
                 // Subpixel sampling for Red channel
                 float rPrev = getLuma(texture2D(u_imagePrev, uvR + offsetPrev));
@@ -382,7 +383,7 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
 
         let lastVideoTime = -1;
         let frameStartTime = performance.now();
-        let estimatedFrameDuration = 33.33; // Default 30fps carrier interval (33ms)
+        let estimatedFrameDuration = 41.67; // Default 24fps cinematic carrier interval (41.67ms)
 
         function renderLoop(): void {
             if (!videoElement.paused && !videoElement.ended && videoElement.videoWidth > 0) {
@@ -401,7 +402,7 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
                 if (videoElement.currentTime !== lastVideoTime) {
                     if (lastVideoTime >= 0) {
                         const delta = now - frameStartTime;
-                        if (delta > 10 && delta < 200) {
+                        if (delta > 10 && delta < 250) {
                             estimatedFrameDuration = estimatedFrameDuration * 0.7 + delta * 0.3;
                         }
                     }
@@ -418,7 +419,7 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
                     gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, videoElement);
                 }
 
-                // Compute smooth temporal interpolation phase for 60 FPS rendering
+                // Compute smooth temporal motion extrapolation phase for 48 FPS double-rate rendering
                 const elapsed = now - frameStartTime;
                 const alpha = Math.min(Math.max(elapsed / Math.max(estimatedFrameDuration, 16.0), 0.0), 1.0);
 
@@ -1790,7 +1791,7 @@ async function executeQualityChange(qualityLevel: QualityLevel): Promise<void> {
         }
     }
     setMonochromeMode(true);
-    showToast(`Quality set to ${qualityLevel.charAt(0).toUpperCase() + qualityLevel.slice(1)} (1080p Subpixel Mono)`, 'info');
+    showToast(`Quality set to ${qualityLevel.charAt(0).toUpperCase() + qualityLevel.slice(1)} (1080p 24fps -> 48fps Extrapolated)`, 'info');
 }
 
 // ==========================================
