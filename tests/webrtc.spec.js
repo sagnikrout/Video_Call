@@ -126,5 +126,54 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await expect(page.locator('.toast-item.toast-info').last()).toHaveText(/Quality set to High/);
   });
 
+  test('7. Permanent 10-Digit Identifier Persistence in LocalStorage', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
+    const idFirst = await page.locator('#my-id-display').textContent();
+    
+    // Verify 10-digit phone format XXX-XXX-XXXX
+    expect(idFirst).toMatch(/^\d{3}-\d{3}-\d{4}$/);
+
+    // Verify localStorage persistence across page reloads
+    await page.reload();
+    await expect(page.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
+    const idSecond = await page.locator('#my-id-display').textContent();
+    expect(idSecond).toBe(idFirst);
+  });
+
+  test('8. Strict 2-Person Call Exclusivity (Third-party Busy Rejection)', async ({ context }) => {
+    const p1 = await context.newPage();
+    const p2 = await context.newPage();
+    const p3 = await context.newPage();
+    await p1.goto('/');
+    await p2.goto('/');
+    await p3.goto('/');
+
+    await expect(p1.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 15000 });
+    await expect(p2.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 15000 });
+    await expect(p3.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 15000 });
+
+    const id1 = await p1.locator('#my-id-display').textContent();
+
+    // p2 calls p1
+    await p2.click('#info-btn');
+    await p2.fill('#remote-id-input', id1);
+    await p2.waitForTimeout(500);
+    await p2.click('#connect-btn');
+
+    await expect(p2.locator('.status-badge')).toHaveText(/Connected/, { timeout: 15000 });
+    await expect(p1.locator('.status-badge')).toHaveText(/Connected/, { timeout: 15000 });
+
+    // p3 attempts to call p1 while p1 is in active call with p2
+    await p3.click('#info-btn');
+    await p3.fill('#remote-id-input', id1);
+    await p3.waitForTimeout(500);
+    await p3.click('#connect-btn');
+
+    // p1 receives rejection notification, p1 & p2 remain connected
+    await expect(p1.locator('.status-badge')).toHaveText(/Connected/);
+    await expect(p2.locator('.status-badge')).toHaveText(/Connected/);
+  });
+
 });
 

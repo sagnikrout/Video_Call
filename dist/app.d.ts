@@ -4,7 +4,15 @@
  */
 declare class Peer {
     id: string;
-    constructor(options?: {
+    constructor(idOrOptions?: string | {
+        key?: string;
+        host?: string;
+        port?: number;
+        path?: string;
+        secure?: boolean;
+        config?: RTCConfiguration;
+        debug?: number;
+    }, options?: {
         key?: string;
         host?: string;
         port?: number;
@@ -30,6 +38,7 @@ declare class Peer {
 interface MediaConnection {
     peer: string;
     open: boolean;
+    metadata?: any;
     peerConnection?: RTCPeerConnection;
     answer(stream?: MediaStream): void;
     close(): void;
@@ -95,6 +104,21 @@ declare let remoteAnalyserNode: AnalyserNode | null;
 declare let speechDetectionInterval: ReturnType<typeof setInterval> | null;
 declare let dataConnection: DataConnection | null;
 declare let isIntentionalDisconnect: boolean;
+declare let myPermanent10DigitId: string;
+declare let activeEphemeralSessionId: string | null;
+/**
+ * Retrieves the user's permanent 10-digit ID from localStorage, or cryptographically
+ * generates a fresh 10-digit number and persists it.
+ */
+declare function getOrCreatePermanentId(): string;
+/**
+ * Formats a 10-digit string into standard phone-style notation (XXX-XXX-XXXX).
+ */
+declare function format10DigitId(id: string): string;
+/**
+ * Strips formatting, prefixes, and non-numeric characters to extract the raw 10 digits.
+ */
+declare function clean10DigitId(input: string): string;
 declare let qualityChangeQueue: Promise<void>;
 declare const QUALITY_PRESETS: Record<QualityLevel, QualityPreset>;
 declare const localVideo: HTMLVideoElement;

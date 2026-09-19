@@ -29,6 +29,49 @@ let speechDetectionInterval = null;
 // Companion Data Connection & Disconnect Synchronization
 let dataConnection = null;
 let isIntentionalDisconnect = false;
+// Permanent 10-Digit Identifier & Ephemeral Session State
+let myPermanent10DigitId = '';
+let activeEphemeralSessionId = null;
+/**
+ * Retrieves the user's permanent 10-digit ID from localStorage, or cryptographically
+ * generates a fresh 10-digit number and persists it.
+ */
+function getOrCreatePermanentId() {
+    try {
+        const sessionStored = sessionStorage.getItem('darpan_permanent_id');
+        if (sessionStored && /^\d{10}$/.test(sessionStored)) {
+            return sessionStored;
+        }
+        const array = new Uint32Array(2);
+        crypto.getRandomValues(array);
+        const randVal = (array[0] % 9000000000) + 1000000000;
+        const freshId = randVal.toString();
+        sessionStorage.setItem('darpan_permanent_id', freshId);
+        localStorage.setItem('darpan_permanent_id', freshId);
+        return freshId;
+    }
+    catch (e) {
+        const randVal = Math.floor(1000000000 + Math.random() * 9000000000);
+        return randVal.toString();
+    }
+}
+/**
+ * Formats a 10-digit string into standard phone-style notation (XXX-XXX-XXXX).
+ */
+function format10DigitId(id) {
+    const cleaned = id.replace(/\D/g, '');
+    if (cleaned.length !== 10)
+        return id;
+    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
+}
+/**
+ * Strips formatting, prefixes, and non-numeric characters to extract the raw 10 digits.
+ */
+function clean10DigitId(input) {
+    if (!input)
+        return '';
+    return input.replace(/^darpan-/, '').replace(/\D/g, '');
+}
 // Asynchronous mutex chain to queue quality modifications and prevent concurrent setParameters calls
 let qualityChangeQueue = Promise.resolve();
 // Optimal sqrt(2) : 1 Sensor Geometry (1528 x 1080) - 94.3% Physical Silicon Harvest
@@ -371,20 +414,23 @@ function initUpscaler(videoElement, canvasElement) {
                 const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
                 let scaleX = 1.0;
                 let scaleY = 1.0;
-                if (currentVideoFitMode === 'cover') {
-                    if (videoAspect > canvasAspect) {
-                        scaleX = canvasAspect / videoAspect;
+                // Epsilon snap to eliminate subpixel floating-point rounding edge cases when aspect ratios match
+                if (Math.abs(videoAspect - canvasAspect) > 0.005) {
+                    if (currentVideoFitMode === 'cover') {
+                        if (videoAspect > canvasAspect) {
+                            scaleX = canvasAspect / videoAspect;
+                        }
+                        else {
+                            scaleY = videoAspect / canvasAspect;
+                        }
                     }
                     else {
-                        scaleY = videoAspect / canvasAspect;
-                    }
-                }
-                else {
-                    if (videoAspect > canvasAspect) {
-                        scaleY = videoAspect / canvasAspect;
-                    }
-                    else {
-                        scaleX = canvasAspect / videoAspect;
+                        if (videoAspect > canvasAspect) {
+                            scaleY = videoAspect / canvasAspect;
+                        }
+                        else {
+                            scaleX = canvasAspect / videoAspect;
+                        }
                     }
                 }
                 gl.uniform2f(scaleLocation, scaleX, scaleY);
@@ -562,7 +608,9 @@ function makeElementDraggable(el) {
  */
 function initializePeer() {
     updateStatus('Connecting to signaling server...', 'warning');
-    peer = new Peer({
+    myPermanent10DigitId = getOrCreatePermanentId();
+    const signalingId = 'darpan-' + myPermanent10DigitId;
+    peer = new Peer(signalingId, {
         config: {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -584,14 +632,14 @@ function initializePeer() {
     });
     peer.on('open', (id) => {
         console.log('PeerJS connection open. Assigned Local Peer ID:', id);
+        const displayId = format10DigitId(myPermanent10DigitId);
         if (myIdDisplay)
-            myIdDisplay.textContent = id;
+            myIdDisplay.textContent = displayId;
         updateStatus('Awaiting Connection', 'warning');
-        showToast('Registered with signaling server', 'success');
+        showToast('Registered with 10-digit number: ' + displayId, 'success');
     });
     peer.on('call', (incomingCall) => {
         console.log('Incoming call received from:', incomingCall.peer);
-        showToast(`Incoming call from: ${incomingCall.peer.substring(0, 8)}...`, 'info');
         handleIncomingCall(incomingCall);
     });
     peer.on('connection', (conn) => {
@@ -610,6 +658,20 @@ function initializePeer() {
             showToast('Could not connect to peer', 'error');
             updateStatus('Peer Unavailable', 'disconnected');
         }
+        else if (err.type === 'unavailable-id') {
+            console.warn('ID collision on signaling server. Regenerating 10-digit number...');
+            const array = new Uint32Array(2);
+            crypto.getRandomValues(array);
+            const freshId = ((array[0] % 9000000000) + 1000000000).toString();
+            sessionStorage.setItem('darpan_permanent_id', freshId);
+            localStorage.setItem('darpan_permanent_id', freshId);
+            myPermanent10DigitId = freshId;
+            try {
+                peer?.destroy();
+            }
+            catch (e) { }
+            initializePeer();
+        }
         else {
             showToast(`Signaling Error: ${err.type}`, 'error');
             updateStatus(`Error: ${err.type}`, 'disconnected');
@@ -620,17 +682,51 @@ function initializePeer() {
  * Binds signaling listeners to a companion PeerJS DataConnection for synchronized disconnection.
  */
 function setupDataConnection(conn) {
+    // Strict 2-Person Exclusivity: Reject third-party connection if already in active call
+    if (dataConnection !== null && dataConnection.open && dataConnection.peer !== conn.peer) {
+        console.warn('Rejecting third-party DataConnection from:', conn.peer);
+        try {
+            conn.send({ type: 'BUSY_REJECT', reason: 'User is in an exclusive 1-on-1 call' });
+        }
+        catch (e) { }
+        setTimeout(() => conn.close(), 100);
+        return;
+    }
     dataConnection = conn;
     conn.on('open', () => {
         console.log('Companion DataConnection established with remote peer.');
+        if (activeEphemeralSessionId) {
+            conn.send({
+                type: 'HANDSHAKE_INIT',
+                sessionId: activeEphemeralSessionId,
+                sender10DigitId: myPermanent10DigitId,
+                timestamp: Date.now()
+            });
+        }
     });
     conn.on('data', (data) => {
         console.log('DataConnection message received:', data);
         const msg = data;
-        if (msg && msg.type === 'end-call') {
-            isIntentionalDisconnect = true;
-            showToast('Remote user ended the call', 'warning');
-            resetCallUI('Remote user disconnected');
+        if (msg) {
+            if (msg.type === 'end-call') {
+                isIntentionalDisconnect = true;
+                showToast('Remote user ended the call', 'warning');
+                resetCallUI('Remote user disconnected');
+            }
+            else if (msg.type === 'BUSY_REJECT') {
+                showToast('Remote user is currently in another call (Busy)', 'warning');
+                resetCallUI('Remote user busy');
+            }
+            else if (msg.type === 'HANDSHAKE_INIT') {
+                if (!activeEphemeralSessionId) {
+                    activeEphemeralSessionId = msg.sessionId;
+                }
+                conn.send({
+                    type: 'HANDSHAKE_ACK',
+                    sessionId: activeEphemeralSessionId,
+                    recipient10DigitId: myPermanent10DigitId
+                });
+            }
         }
     });
     conn.on('close', () => {
@@ -1109,6 +1205,23 @@ function setupEventListeners() {
             }
         });
     }
+    if (remoteIdInput) {
+        remoteIdInput.addEventListener('input', () => {
+            const val = remoteIdInput.value;
+            if (/^[\d-]+$/.test(val)) {
+                const digits = val.replace(/\D/g, '');
+                if (digits.length <= 3) {
+                    remoteIdInput.value = digits;
+                }
+                else if (digits.length <= 6) {
+                    remoteIdInput.value = `${digits.slice(0, 3)}-${digits.slice(3)}`;
+                }
+                else {
+                    remoteIdInput.value = `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+                }
+            }
+        });
+    }
     if (connectBtn) {
         connectBtn.addEventListener('click', () => {
             const remoteId = remoteIdInput.value.trim();
@@ -1116,7 +1229,8 @@ function setupEventListeners() {
                 showToast('Please enter a valid Peer ID.', 'error');
                 return;
             }
-            if (peer && remoteId === peer.id) {
+            const clean = clean10DigitId(remoteId);
+            if (myPermanent10DigitId && (clean === myPermanent10DigitId || remoteId === ('darpan-' + myPermanent10DigitId))) {
                 alert('You cannot call your own Peer ID!');
                 return;
             }
@@ -1247,13 +1361,23 @@ function initiateCall(remoteId) {
         showToast('Local stream is not ready. Please grant camera and microphone access.', 'error');
         return;
     }
-    remotePeerId = remoteId;
+    const clean = clean10DigitId(remoteId);
+    if (myPermanent10DigitId && (clean === myPermanent10DigitId || remoteId === ('darpan-' + myPermanent10DigitId))) {
+        alert('You cannot call your own Peer ID!');
+        return;
+    }
+    const targetSignalingId = clean.length === 10 ? ('darpan-' + clean) : (remoteId.startsWith('darpan-') ? remoteId : ('darpan-' + remoteId));
+    remotePeerId = targetSignalingId;
     isIntentionalDisconnect = false;
+    // Ephemeral session nonce for this 1-on-1 call
+    activeEphemeralSessionId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2) + Date.now().toString(36);
     updateStatus('Connecting...', 'warning');
-    console.log(`Initiating outgoing call to peer: ${remoteId}`);
+    console.log(`Initiating outgoing call to: ${targetSignalingId} (Session: ${activeEphemeralSessionId})`);
     try {
         if (peer) {
-            const conn = peer.connect(remoteId);
+            const conn = peer.connect(targetSignalingId);
             setupDataConnection(conn);
         }
     }
@@ -1263,7 +1387,12 @@ function initiateCall(remoteId) {
     try {
         if (!peer)
             throw new Error("PeerJS is not initialized.");
-        const call = peer.call(remoteId, localStream);
+        const call = peer.call(targetSignalingId, localStream, {
+            metadata: {
+                sessionId: activeEphemeralSessionId,
+                callerId: myPermanent10DigitId
+            }
+        });
         if (!call)
             throw new Error("PeerJS failed to create the call object.");
         setupCallEvents(call);
@@ -1278,10 +1407,32 @@ function initiateCall(remoteId) {
  * Handles an incoming WebRTC call from a remote peer.
  */
 function handleIncomingCall(call) {
+    // Strict 2-Person Exclusivity: If a call is already active, reject incoming caller immediately
+    if (currentCall !== null && currentCall.open) {
+        console.warn('Rejecting third-party incoming call from:', call.peer);
+        try {
+            call.close();
+        }
+        catch (e) { }
+        const callerClean = clean10DigitId(call.peer);
+        showToast(`Call from ${format10DigitId(callerClean)} rejected (Session busy)`, 'warning');
+        return;
+    }
     try {
         remotePeerId = call.peer;
+        const caller10Digit = clean10DigitId(call.peer);
         if (remoteIdInput)
-            remoteIdInput.value = call.peer;
+            remoteIdInput.value = format10DigitId(caller10Digit);
+        // Ephemeral session binding
+        if (call.metadata && call.metadata.sessionId) {
+            activeEphemeralSessionId = call.metadata.sessionId;
+        }
+        else {
+            activeEphemeralSessionId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : Math.random().toString(36).substring(2);
+        }
+        showToast(`Incoming call from: ${format10DigitId(caller10Digit)}`, 'info');
         isIntentionalDisconnect = false;
         if (localStream)
             call.answer(localStream);
@@ -1407,6 +1558,7 @@ function hangUpCall(statusText = 'Call Ended') {
 }
 function resetCallUI(statusMessage) {
     currentCall = null;
+    activeEphemeralSessionId = null;
     if (reconnectTimeoutId)
         clearTimeout(reconnectTimeoutId);
     stopUpscaler();
@@ -1455,7 +1607,8 @@ function updateCallUIState(inCall) {
         if (dockInCallTools)
             dockInCallTools.classList.remove('hidden');
         if (callParticipant) {
-            const idToDisplay = remotePeerId ? (remotePeerId.substring(0, 12) + '...') : 'Remote Peer';
+            const clean = clean10DigitId(remotePeerId);
+            const idToDisplay = clean.length === 10 ? format10DigitId(clean) : (remotePeerId ? (remotePeerId.substring(0, 12) + '...') : 'Remote Peer');
             callParticipant.textContent = idToDisplay;
         }
         startCallTimer();
