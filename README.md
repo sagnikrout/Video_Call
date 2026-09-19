@@ -44,45 +44,56 @@ sequenceDiagram
 
 ## 🛠️ Codebase Structure
 
-The codebase is streamlined and modular with zero external build-tool overhead:
+The codebase is written in modern **TypeScript (v7)** with strict type safety and compiled to ES2022:
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `index.html` | Core layout featuring a responsive glassmorphic dock, anchored popovers, and draggable local preview. |
-| `style.css` | Comprehensive design token system, responsive single-row dock for mobile/desktop, and dark glass styling. |
-| `app.js` | Consolidated client runtime: WebRTC signaling, OpenRelay TURN traversal, WebGL 3x3 Laplacian shader, device selection, and telemetry. |
-| `tests/webrtc.spec.js` | Automated Playwright test suite validating signaling handshakes, device enumeration, media toggles, and bitrate switching. |
+| `src/app.ts` | **TypeScript Source of Truth**: WebRTC signaling, OpenRelay TURN relays, WebGL 3x3 Laplacian shader, hardware management, and telemetry. |
+| `dist/app.js` | Compiled JavaScript runtime bundle for browser execution. |
+| `index.html` | Minimalist layout featuring a responsive glassmorphic dock, anchored popovers, and draggable local preview. |
+| `style.css` | Comprehensive design tokens, responsive single-row mobile dock pill, and glassmorphic styling. |
+| `tsconfig.json` | Strict TypeScript compiler configuration (ES2022 target, declaration maps). |
+| `tests/webrtc.spec.js` | Automated Playwright test suite validating handshakes, device enumeration, media toggles, and quality constraints. |
 
 ---
 
-## 💻 Local Development
+## 💻 Local Development & TypeScript Build
 
-Because Darpan uses native browser APIs (`navigator.mediaDevices`), it **must** be served over `localhost` or a secure `https` context. It will not work if you simply open the HTML file from the file explorer.
+Because Darpan uses native browser APIs (`navigator.mediaDevices`), it **must** be served over `localhost` or a secure `https` context.
 
 ### Prerequisites
-- [Node.js](https://nodejs.org) installed.
+- [Node.js](https://nodejs.org) (v18+ recommended).
 
-### Setup
-1. Clone the repository:
+### Setup & Compilation
+1. Clone the repository and install dependencies:
    ```bash
    git clone https://github.com/sagnikrout/Video_Call.git
    cd Video_Call
+   npm install
    ```
-2. Serve the directory locally (using any HTTP server):
+2. Build the TypeScript source:
+   ```bash
+   npm run build
+   ```
+3. (Optional) Run TypeScript type checker or watch mode:
+   ```bash
+   npm run type-check   # Verifies strict typing with 0 emissions
+   npm run watch        # Incremental compilation on save
+   ```
+4. Serve the directory locally:
    ```bash
    npx serve .
    ```
-3. Open `http://localhost:3000` in your browser.
+5. Open `http://localhost:3000` in your browser.
 
 ---
 
 ## 🧪 Testing
 
-Darpan uses **Playwright** for headless E2E testing. We use the `--use-fake-ui-for-media-stream` and `--use-fake-device-for-media-stream` chromium flags to mock camera hardware in CI/CD.
+Darpan uses **Playwright** for headless E2E testing with simulated camera/microphone streams:
 
 ```bash
-npm install
-npx playwright test
+npm test
 ```
 
 ---

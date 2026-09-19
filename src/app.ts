@@ -1,32 +1,111 @@
 /**
- * Single-Page Peer-to-Peer WebRTC Video Calling Web Application
- * Built with HTML5, CSS3, Vanilla JavaScript, WebRTC, and PeerJS.
+ * Single-Page Peer-to-Peer WebRTC Video Calling Web Application (Darpan)
+ * Built with HTML5, CSS3, Vanilla TypeScript, WebRTC, and PeerJS.
  */
+
+// ==========================================
+// Type Definitions & Interfaces
+// ==========================================
+
+declare class Peer {
+    id: string;
+    constructor(options?: {
+        key?: string;
+        host?: string;
+        port?: number;
+        path?: string;
+        secure?: boolean;
+        config?: RTCConfiguration;
+        debug?: number;
+    });
+    on(event: 'open', callback: (id: string) => void): void;
+    on(event: 'call', callback: (call: MediaConnection) => void): void;
+    on(event: 'connection', callback: (conn: DataConnection) => void): void;
+    on(event: 'disconnected', callback: () => void): void;
+    on(event: 'close', callback: () => void): void;
+    on(event: 'error', callback: (err: { type: string; message?: string }) => void): void;
+    call(id: string, stream: MediaStream, options?: unknown): MediaConnection;
+    connect(id: string, options?: unknown): DataConnection;
+    reconnect(): void;
+    destroy(): void;
+}
+
+interface MediaConnection {
+    peer: string;
+    open: boolean;
+    peerConnection?: RTCPeerConnection;
+    answer(stream?: MediaStream): void;
+    close(): void;
+    on(event: 'stream', callback: (stream: MediaStream) => void): void;
+    on(event: 'close', callback: () => void): void;
+    on(event: 'error', callback: (err: unknown) => void): void;
+}
+
+interface DataConnection {
+    peer: string;
+    open: boolean;
+    send(data: unknown): void;
+    close(): void;
+    on(event: 'open', callback: () => void): void;
+    on(event: 'data', callback: (data: unknown) => void): void;
+    on(event: 'close', callback: () => void): void;
+    on(event: 'error', callback: (err: unknown) => void): void;
+}
+
+type QualityLevel = 'high' | 'medium' | 'low';
+type VideoFitMode = 'contain' | 'cover';
+type ConnectionBadgeState = 'connected' | 'disconnected' | 'warning';
+type ToastType = 'info' | 'success' | 'warning' | 'error';
+
+interface QualityPreset {
+    width: number;
+    height: number;
+    frameRate: number;
+    videoMaxBitrate: number;
+    audioMaxBitrate: number;
+}
+
+interface CornerPosition {
+    name: string;
+    getPos: (w: number, h: number) => { left: number; top: number };
+}
+
+interface DataSignalMessage {
+    type: string;
+    [key: string]: unknown;
+}
+
+// Window interface extension
+interface Window {
+    initUpscaler?: (videoElement: HTMLVideoElement, canvasElement: HTMLCanvasElement) => void;
+    setVideoFitMode?: (mode: VideoFitMode) => void;
+    stopUpscaler?: () => void;
+}
 
 // ==========================================
 // Global Application State Variables
 // ==========================================
-let peer = null;                // PeerJS instance
-let currentCall = null;         // Active PeerJS MediaConnection call object
-let localStream = null;         // Local MediaStream (Camera & Microphone tracks)
-let currentQuality = 'medium';  // Current quality level state ('high' | 'medium' | 'low')
-let remotePeerId = '';          // Stores the remote peer ID for call management and reconnection
-let reconnectTimeoutId = null;  // Timer reference for ICE auto-reconnection attempts
+let peer: Peer | null = null;
+let currentCall: MediaConnection | null = null;
+let localStream: MediaStream | null = null;
+let currentQuality: QualityLevel = 'medium';
+let remotePeerId: string = '';
+let reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 // In-Call UX & Screen Sharing state
-let callStartTime = null;       // Timestamp when active call started
-let callTimerInterval = null;   // Interval handle for live call duration counter
-let isScreenSharing = false;    // Whether user is currently sharing screen
-let screenStream = null;        // Active MediaStream for screen capture
+let callStartTime: number | null = null;
+let callTimerInterval: ReturnType<typeof setInterval> | null = null;
+let isScreenSharing: boolean = false;
+let screenStream: MediaStream | null = null;
 
 // Companion Data Connection & Disconnect Synchronization
-let dataConnection = null;           // Companion DataConnection for signaling events (end-call, etc.)
-let isIntentionalDisconnect = false; // Flag to prevent auto-reconnect loops when a user intentionally hangs up
+let dataConnection: DataConnection | null = null;
+let isIntentionalDisconnect: boolean = false;
 
 // Asynchronous mutex chain to queue quality modifications and prevent concurrent setParameters calls
-let qualityChangeQueue = Promise.resolve();
+let qualityChangeQueue: Promise<void> = Promise.resolve();
 
-const QUALITY_PRESETS = {
+const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     high: {
         width: 2560,
         height: 1440,
@@ -50,64 +129,61 @@ const QUALITY_PRESETS = {
     }
 };
 
-// DOM Element References (exact IDs)
-const localVideo = document.getElementById('local-video');
-const remoteVideo = document.getElementById('remote-video');
-const myIdDisplay = document.getElementById('my-id-display');
-const copyIdBtn = document.getElementById('copy-id-btn');
-const remoteIdInput = document.getElementById('remote-id-input');
-const connectBtn = document.getElementById('connect-btn');
-const disconnectBtn = document.getElementById('disconnect-btn');
-const toggleMicBtn = document.getElementById('toggle-mic-btn');
-const toggleCamBtn = document.getElementById('toggle-cam-btn');
-const connectionStatus = document.getElementById('connection-status');
-const statusBadge = document.querySelector('.status-badge');
-const remoteVideoPlaceholder = document.getElementById('remote-video-placeholder');
+// ==========================================
+// Cached DOM Elements
+// ==========================================
+const localVideo = document.getElementById('local-video') as HTMLVideoElement;
+const remoteVideo = document.getElementById('remote-video') as HTMLVideoElement;
+const myIdDisplay = document.getElementById('my-id-display') as HTMLElement;
+const copyIdBtn = document.getElementById('copy-id-btn') as HTMLButtonElement;
+const remoteIdInput = document.getElementById('remote-id-input') as HTMLInputElement;
+const connectBtn = document.getElementById('connect-btn') as HTMLButtonElement;
+const disconnectBtn = document.getElementById('disconnect-btn') as HTMLButtonElement;
+const toggleMicBtn = document.getElementById('toggle-mic-btn') as HTMLButtonElement;
+const toggleCamBtn = document.getElementById('toggle-cam-btn') as HTMLButtonElement;
+const connectionStatus = document.getElementById('connection-status') as HTMLElement;
+const statusBadge = document.querySelector('.status-badge') as HTMLElement;
+const remoteVideoPlaceholder = document.getElementById('remote-video-placeholder') as HTMLElement;
 
-const btnQualityHigh = document.getElementById('btn-quality-high');
-const btnQualityMedium = document.getElementById('btn-quality-medium');
-const btnQualityLow = document.getElementById('btn-quality-low');
+const btnQualityHigh = document.getElementById('btn-quality-high') as HTMLButtonElement;
+const btnQualityMedium = document.getElementById('btn-quality-medium') as HTMLButtonElement;
+const btnQualityLow = document.getElementById('btn-quality-low') as HTMLButtonElement;
 
-const micSelect = document.getElementById('mic-select');
-const cameraSelect = document.getElementById('camera-select');
-const toastContainer = document.getElementById('toast-container');
+const micSelect = document.getElementById('mic-select') as HTMLSelectElement;
+const cameraSelect = document.getElementById('camera-select') as HTMLSelectElement;
+const toastContainer = document.getElementById('toast-container') as HTMLElement;
 
-const infoBtn = document.getElementById('info-btn');
-const infoPanel = document.getElementById('info-panel');
-const closeInfoBtn = document.getElementById('close-info-btn');
-const statUpload = document.getElementById('stat-upload');
-const statDownload = document.getElementById('stat-download');
+const infoBtn = document.getElementById('info-btn') as HTMLButtonElement;
+const infoPanel = document.getElementById('info-panel') as HTMLElement;
+const closeInfoBtn = document.getElementById('close-info-btn') as HTMLButtonElement;
+const statUpload = document.getElementById('stat-upload') as HTMLElement;
+const statDownload = document.getElementById('stat-download') as HTMLElement;
 
 // ==========================================
 // Telemetry Globals
 // ==========================================
-let telemetryIntervalId = null;
-let lastBytesSent = 0;
-let lastBytesReceived = 0;
-let lastTimestamp = 0;
+let telemetryIntervalId: ReturnType<typeof setInterval> | null = null;
+let lastBytesSent: number = 0;
+let lastBytesReceived: number = 0;
+let lastTimestamp: number = 0;
 
 // ==========================================
 // WebGL Spatial Upscaler & Video Shader Engine
 // ==========================================
-let upscalerAnimationFrameId = null;
-let currentVideoFitMode = 'contain'; // Default to 'contain' (Fit to Frame) to prevent zooming/cropping
+let upscalerAnimationFrameId: number | null = null;
+let currentVideoFitMode: VideoFitMode = 'contain';
 
 /**
  * Initializes the WebGL spatial interpolation upscaler.
- * Intercepts the HTML5 <video> stream, applies a 3x3 Convolution Matrix 
- * (Laplacian edge enhancement), and outputs to the provided <canvas>.
- * 
- * @param {HTMLVideoElement} videoElement - The source WebRTC video stream.
- * @param {HTMLCanvasElement} canvasElement - The destination canvas for the shader.
+ * Applies a 3x3 Convolution Matrix (Laplacian edge enhancement) to video stream.
  */
-function initUpscaler(videoElement, canvasElement) {
+function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasElement): void {
     if (!videoElement || !canvasElement) return;
 
-    // Stop any existing render loop before re-initializing
     stopUpscaler();
 
     try {
-        const gl = canvasElement.getContext('webgl2') || canvasElement.getContext('webgl');
+        const gl = (canvasElement.getContext('webgl2') || canvasElement.getContext('webgl')) as WebGLRenderingContext | null;
         if (!gl) {
             console.warn("WebGL not supported, falling back to standard video rendering.");
             canvasElement.style.display = 'none';
@@ -115,18 +191,16 @@ function initUpscaler(videoElement, canvasElement) {
             return;
         }
 
-        // Vertex Shader: Renders a simple full-screen quad
         const vsSource = `
             attribute vec2 a_position;
             attribute vec2 a_texCoord;
             varying vec2 v_texCoord;
             void main() {
                 gl_Position = vec4(a_position, 0.0, 1.0);
-                v_texCoord = vec2(a_texCoord.x, 1.0 - a_texCoord.y); // Flip Y to match WebGL vs HTML orientation
+                v_texCoord = vec2(a_texCoord.x, 1.0 - a_texCoord.y);
             }
         `;
 
-        // Fragment Shader: Advanced Post-Processing with Aspect-Ratio Matching (3x3 Laplacian Sharpening, Contrast, Gamma)
         const fsSource = `
             precision mediump float;
             uniform sampler2D u_image;
@@ -138,10 +212,8 @@ function initUpscaler(videoElement, canvasElement) {
             const float contrast = 1.15;
 
             void main() {
-                // Scale UV coordinates relative to texture center to preserve original video aspect ratio
                 vec2 uv = (v_texCoord - 0.5) * u_scale + 0.5;
 
-                // Letterbox clamp check: render clean black if outside video frame
                 if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
                     gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
                     return;
@@ -149,7 +221,6 @@ function initUpscaler(videoElement, canvasElement) {
 
                 vec2 texelSize = 1.0 / u_resolution;
 
-                // Sample surrounding pixels for 3x3 convolution matrix
                 vec4 center = texture2D(u_image, uv);
                 vec4 top    = texture2D(u_image, uv + vec2(0.0, -texelSize.y));
                 vec4 bottom = texture2D(u_image, uv + vec2(0.0, texelSize.y));
@@ -160,15 +231,11 @@ function initUpscaler(videoElement, canvasElement) {
                 vec4 bl     = texture2D(u_image, uv + vec2(-texelSize.x, texelSize.y));
                 vec4 br     = texture2D(u_image, uv + vec2(texelSize.x, texelSize.y));
 
-                // Laplacian edge enhancement (Unsharp Masking)
                 float sharpness = 1.0; 
                 vec4 edge = center * 8.0 - (top + bottom + left + right + tl + tr + bl + br);
                 vec4 color = center + (edge * sharpness * 0.15);
 
-                // Contrast enhancement curve
                 color.rgb = (color.rgb - 0.5) * contrast + 0.5;
-
-                // Gamma correction for color vibrancy
                 color.rgb = pow(abs(color.rgb), vec3(1.0 / gamma));
 
                 gl_FragColor = clamp(color, 0.0, 1.0);
@@ -176,13 +243,14 @@ function initUpscaler(videoElement, canvasElement) {
             }
         `;
 
-        function compileShader(gl, type, source) {
-            const shader = gl.createShader(type);
-            gl.shaderSource(shader, source);
-            gl.compileShader(shader);
-            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                console.error("An error occurred compiling the shaders: " + gl.getShaderInfoLog(shader));
-                gl.deleteShader(shader);
+        function compileShader(context: WebGLRenderingContext, type: number, source: string): WebGLShader | null {
+            const shader = context.createShader(type);
+            if (!shader) return null;
+            context.shaderSource(shader, source);
+            context.compileShader(shader);
+            if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) {
+                console.error("Shader compile error:", context.getShaderInfoLog(shader));
+                context.deleteShader(shader);
                 return null;
             }
             return shader;
@@ -190,19 +258,20 @@ function initUpscaler(videoElement, canvasElement) {
 
         const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vsSource);
         const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fsSource);
+        if (!vertexShader || !fragmentShader) return;
 
         const shaderProgram = gl.createProgram();
+        if (!shaderProgram) return;
         gl.attachShader(shaderProgram, vertexShader);
         gl.attachShader(shaderProgram, fragmentShader);
         gl.linkProgram(shaderProgram);
 
         if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-            throw new Error("Unable to initialize the shader program: " + gl.getProgramInfoLog(shaderProgram));
+            throw new Error("Unable to link shader program: " + gl.getProgramInfoLog(shaderProgram));
         }
 
         gl.useProgram(shaderProgram);
 
-        // Set up buffers (Quad)
         const positionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         const positions = [
@@ -223,7 +292,6 @@ function initUpscaler(videoElement, canvasElement) {
         ];
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
 
-        // Bind Attributes
         const positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
         gl.enableVertexAttribArray(positionLocation);
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -234,7 +302,6 @@ function initUpscaler(videoElement, canvasElement) {
         gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
         gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
 
-        // Create Texture
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -246,10 +313,7 @@ function initUpscaler(videoElement, canvasElement) {
         const resolutionLocation = gl.getUniformLocation(shaderProgram, "u_resolution");
         const scaleLocation = gl.getUniformLocation(shaderProgram, "u_scale");
 
-        /**
-         * Main WebGL render loop synchronized with browser frames.
-         */
-        function renderLoop() {
+        function renderLoop(): void {
             if (!videoElement.paused && !videoElement.ended && videoElement.videoWidth > 0) {
                 const displayWidth = canvasElement.clientWidth * (window.devicePixelRatio || 1);
                 const displayHeight = canvasElement.clientHeight * (window.devicePixelRatio || 1);
@@ -257,15 +321,14 @@ function initUpscaler(videoElement, canvasElement) {
                 if (canvasElement.width !== displayWidth || canvasElement.height !== displayHeight) {
                     canvasElement.width = displayWidth;
                     canvasElement.height = displayHeight;
-                    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+                    gl!.viewport(0, 0, gl!.canvas.width, gl!.canvas.height);
                 }
 
-                gl.bindTexture(gl.TEXTURE_2D, texture);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
+                gl!.bindTexture(gl!.TEXTURE_2D, texture);
+                gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, videoElement);
 
-                gl.uniform2f(resolutionLocation, videoElement.videoWidth, videoElement.videoHeight);
+                gl!.uniform2f(resolutionLocation, videoElement.videoWidth, videoElement.videoHeight);
 
-                // Calculate Aspect Ratio Scale (contain vs cover)
                 const canvasAspect = displayWidth / displayHeight;
                 const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
                 
@@ -286,18 +349,16 @@ function initUpscaler(videoElement, canvasElement) {
                     }
                 }
 
-                gl.uniform2f(scaleLocation, scaleX, scaleY);
-                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                gl!.uniform2f(scaleLocation, scaleX, scaleY);
+                gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
             }
             upscalerAnimationFrameId = requestAnimationFrame(renderLoop);
         }
 
-        // Start loop once video has enough data
         videoElement.addEventListener('play', () => {
             renderLoop();
         });
         
-        // In case it's already playing
         if (!videoElement.paused) {
             renderLoop();
         }
@@ -311,14 +372,14 @@ function initUpscaler(videoElement, canvasElement) {
 /**
  * Halts the WebGL render loop and frees background animation resources.
  */
-function stopUpscaler() {
-    if (upscalerAnimationFrameId) {
+function stopUpscaler(): void {
+    if (upscalerAnimationFrameId !== null) {
         cancelAnimationFrame(upscalerAnimationFrameId);
         upscalerAnimationFrameId = null;
     }
-    const canvasElement = document.getElementById('upscale-canvas');
+    const canvasElement = document.getElementById('upscale-canvas') as HTMLCanvasElement | null;
     if (canvasElement) {
-        const gl = canvasElement.getContext('webgl2') || canvasElement.getContext('webgl');
+        const gl = (canvasElement.getContext('webgl2') || canvasElement.getContext('webgl')) as WebGLRenderingContext | null;
         if (gl) {
             gl.clearColor(0.0, 0.0, 0.0, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT);
@@ -328,10 +389,8 @@ function stopUpscaler() {
 
 /**
  * Updates the WebGL video view mode ('contain' = Fit to Frame uncropped, 'cover' = Fill Screen).
- * 
- * @param {'contain' | 'cover'} mode 
  */
-function setVideoFitMode(mode) {
+function setVideoFitMode(mode: VideoFitMode): void {
     if (mode === 'contain' || mode === 'cover') {
         currentVideoFitMode = mode;
         console.log(`WebGL Video Fit Mode set to: ${mode}`);
@@ -353,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
 /**
  * Main initialization workflow: setup event listeners, PeerJS signaling, drag engine, and request media hardware.
  */
-async function initializeApplication() {
+async function initializeApplication(): Promise<void> {
     setupEventListeners();
     initializePeer();
     
@@ -365,10 +424,8 @@ async function initializeApplication() {
 
 /**
  * Enables smooth drag and corner snapping behavior on target floating PIP tile.
- * 
- * @param {HTMLElement} el - The floating PIP video container element.
  */
-function makeElementDraggable(el) {
+function makeElementDraggable(el: HTMLElement): void {
     if (!el) return;
 
     let isDragging = false;
@@ -378,14 +435,15 @@ function makeElementDraggable(el) {
     el.addEventListener('mousedown', dragStart);
     el.addEventListener('touchstart', dragStart, { passive: false });
 
-    function dragStart(e) {
-        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+    function dragStart(e: MouseEvent | TouchEvent): void {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'BUTTON' || target.tagName === 'SELECT') return;
 
         isDragging = true;
         el.classList.add('dragging');
 
-        const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
-        const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
         startX = clientX;
         startY = clientY;
@@ -401,11 +459,11 @@ function makeElementDraggable(el) {
         document.addEventListener('touchcancel', dragEnd);
     }
 
-    function dragMove(e) {
+    function dragMove(e: MouseEvent | TouchEvent): void {
         if (!isDragging) return;
         
-        const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-        const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
         const deltaX = clientX - startX;
         const deltaY = clientY - startY;
@@ -429,7 +487,7 @@ function makeElementDraggable(el) {
         if (e.cancelable) e.preventDefault();
     }
 
-    function dragEnd() {
+    function dragEnd(): void {
         if (!isDragging) return;
         isDragging = false;
         el.classList.remove('dragging');
@@ -443,11 +501,11 @@ function makeElementDraggable(el) {
 
     // Double-click to cycle corners: Top-Right -> Top-Left -> Bottom-Left -> Bottom-Right
     let currentCornerIndex = 0;
-    const corners = [
-        { name: 'Top-Left', getPos: (w, h) => ({ left: 24, top: 24 }) },
-        { name: 'Bottom-Left', getPos: (w, h) => ({ left: 24, top: window.innerHeight - h - 24 }) },
+    const corners: CornerPosition[] = [
+        { name: 'Top-Left', getPos: (_w, _h) => ({ left: 24, top: 24 }) },
+        { name: 'Bottom-Left', getPos: (_w, h) => ({ left: 24, top: window.innerHeight - h - 24 }) },
         { name: 'Bottom-Right', getPos: (w, h) => ({ left: window.innerWidth - w - 24, top: window.innerHeight - h - 24 }) },
-        { name: 'Top-Right', getPos: (w, h) => ({ left: window.innerWidth - w - 24, top: 24 }) }
+        { name: 'Top-Right', getPos: (w, _h) => ({ left: window.innerWidth - w - 24, top: 24 }) }
     ];
 
     el.addEventListener('dblclick', () => {
@@ -471,7 +529,7 @@ function makeElementDraggable(el) {
  * Instantiates the PeerJS object and binds signaling connection events.
  * Configured with multi-region STUN + OpenRelay TURN servers for NAT traversal.
  */
-function initializePeer() {
+function initializePeer(): void {
     updateStatus('Connecting to signaling server...', 'warning');
     
     peer = new Peer({
@@ -495,20 +553,20 @@ function initializePeer() {
         }
     });
 
-    peer.on('open', (id) => {
+    peer.on('open', (id: string) => {
         console.log('PeerJS connection open. Assigned Local Peer ID:', id);
-        myIdDisplay.textContent = id;
+        if (myIdDisplay) myIdDisplay.textContent = id;
         updateStatus('Awaiting Connection', 'warning');
         showToast('Registered with signaling server', 'success');
     });
 
-    peer.on('call', (incomingCall) => {
+    peer.on('call', (incomingCall: MediaConnection) => {
         console.log('Incoming call received from:', incomingCall.peer);
         showToast(`Incoming call from: ${incomingCall.peer.substring(0, 8)}...`, 'info');
         handleIncomingCall(incomingCall);
     });
 
-    peer.on('connection', (conn) => {
+    peer.on('connection', (conn: DataConnection) => {
         console.log('Incoming DataConnection received from:', conn.peer);
         setupDataConnection(conn);
     });
@@ -517,10 +575,10 @@ function initializePeer() {
         console.warn('Disconnected from PeerJS signaling server. Attempting auto-reconnection...');
         updateStatus('Reconnecting to server...', 'warning');
         showToast('Signaling server disconnected. Reconnecting...', 'warning');
-        peer.reconnect();
+        peer?.reconnect();
     });
 
-    peer.on('error', (err) => {
+    peer.on('error', (err: { type: string; message?: string }) => {
         console.error('PeerJS signaling error:', err);
         if (err.type === 'peer-unavailable') {
             showToast('Could not connect to peer', 'error');
@@ -534,19 +592,18 @@ function initializePeer() {
 
 /**
  * Binds signaling listeners to a companion PeerJS DataConnection for synchronized disconnection.
- * 
- * @param {DataConnection} conn 
  */
-function setupDataConnection(conn) {
+function setupDataConnection(conn: DataConnection): void {
     dataConnection = conn;
 
     conn.on('open', () => {
         console.log('Companion DataConnection established with remote peer.');
     });
 
-    conn.on('data', (data) => {
+    conn.on('data', (data: unknown) => {
         console.log('DataConnection message received:', data);
-        if (data && data.type === 'end-call') {
+        const msg = data as DataSignalMessage;
+        if (msg && msg.type === 'end-call') {
             isIntentionalDisconnect = true;
             showToast('Remote user ended the call', 'warning');
             resetCallUI('Remote user disconnected');
@@ -557,7 +614,7 @@ function setupDataConnection(conn) {
         console.log('DataConnection closed.');
     });
 
-    conn.on('error', (err) => {
+    conn.on('error', (err: unknown) => {
         console.warn('DataConnection error:', err);
     });
 }
@@ -565,10 +622,10 @@ function setupDataConnection(conn) {
 /**
  * Requests camera and microphone hardware access via navigator.mediaDevices.getUserMedia.
  */
-async function requestMediaPermissions() {
+async function requestMediaPermissions(): Promise<void> {
     try {
         const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const videoConstraints = isMobileDevice 
+        const videoConstraints: MediaTrackConstraints = isMobileDevice 
             ? {
                 frameRate: { ideal: QUALITY_PRESETS.medium.frameRate },
                 facingMode: { ideal: 'user' }
@@ -591,27 +648,22 @@ async function requestMediaPermissions() {
             }
         });
 
-        // User granted permission
         localStream = stream;
-        localVideo.srcObject = stream;
+        if (localVideo) localVideo.srcObject = stream;
         
-        // Hide fallback avatar placeholder so live video feed is displayed
         const localCamAvatar = document.getElementById('local-cam-off-avatar');
         if (localCamAvatar) localCamAvatar.classList.add('hidden');
 
-        // Populate device selection dropdowns (Zoom / Meet style)
         await populateDeviceLists();
         
-        // Listen for hardware device hot-plugging (headsets / webcams plugged or unplugged)
         if (navigator.mediaDevices.ondevicechange !== undefined) {
             navigator.mediaDevices.ondevicechange = () => populateDeviceLists();
         }
 
-        // Default the quality state to "Medium"
         await setMediaQuality('medium');
         console.log('User granted camera & microphone access. Local stream initialized.');
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('getUserMedia Error:', error);
         
         if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
@@ -635,11 +687,9 @@ async function requestMediaPermissions() {
 
 /**
  * Toggles a target dock popover and closes all other open popovers.
- * 
- * @param {HTMLElement} targetPopover - The popover element to toggle.
  */
-function togglePopover(targetPopover) {
-    const allPopovers = document.querySelectorAll('.dock-popover');
+function togglePopover(targetPopover: HTMLElement | null): void {
+    const allPopovers = document.querySelectorAll<HTMLElement>('.dock-popover');
     allPopovers.forEach(popover => {
         if (popover !== targetPopover) {
             popover.classList.add('hidden');
@@ -653,8 +703,8 @@ function togglePopover(targetPopover) {
 /**
  * Closes all open dock popovers.
  */
-function closeAllPopovers() {
-    const allPopovers = document.querySelectorAll('.dock-popover');
+function closeAllPopovers(): void {
+    const allPopovers = document.querySelectorAll<HTMLElement>('.dock-popover');
     allPopovers.forEach(popover => popover.classList.add('hidden'));
 }
 
@@ -665,7 +715,7 @@ function closeAllPopovers() {
 /**
  * Enumerates connected media devices and populates microphone and camera selection dropdowns & popovers.
  */
-async function populateDeviceLists() {
+async function populateDeviceLists(): Promise<void> {
     if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
 
     try {
@@ -674,12 +724,11 @@ async function populateDeviceLists() {
         const audioDevices = devices.filter(d => d.kind === 'audioinput');
         const videoDevices = devices.filter(d => d.kind === 'videoinput');
 
-        let currentAudioDeviceId = localStream && localStream.getAudioTracks().length > 0 ? 
+        const currentAudioDeviceId = localStream && localStream.getAudioTracks().length > 0 ? 
             localStream.getAudioTracks()[0].getSettings().deviceId : null;
-        let currentVideoDeviceId = localStream && localStream.getVideoTracks().length > 0 ? 
+        const currentVideoDeviceId = localStream && localStream.getVideoTracks().length > 0 ? 
             localStream.getVideoTracks()[0].getSettings().deviceId : null;
 
-        // Populate Microphone Select Dropdown & Popover List
         if (micSelect) {
             micSelect.innerHTML = '';
             audioDevices.forEach((device, index) => {
@@ -709,7 +758,6 @@ async function populateDeviceLists() {
             });
         }
 
-        // Populate Camera Select Dropdown & Popover List
         if (cameraSelect) {
             cameraSelect.innerHTML = '';
             videoDevices.forEach((device, index) => {
@@ -722,9 +770,9 @@ async function populateDeviceLists() {
             if (currentVideoDeviceId) cameraSelect.value = currentVideoDeviceId;
         }
 
-        const cameraDeviceList = document.getElementById('camera-device-list');
-        if (cameraDeviceList) {
-            cameraDeviceList.innerHTML = '';
+        const camDeviceList = document.getElementById('cam-device-list');
+        if (camDeviceList) {
+            camDeviceList.innerHTML = '';
             videoDevices.forEach((device, index) => {
                 const item = document.createElement('div');
                 const isCurrent = currentVideoDeviceId === device.deviceId;
@@ -735,27 +783,65 @@ async function populateDeviceLists() {
                     if (cameraSelect) cameraSelect.value = device.deviceId;
                     closeAllPopovers();
                 });
-                cameraDeviceList.appendChild(item);
+                camDeviceList.appendChild(item);
             });
         }
 
-        console.log(`Devices enumerated: ${audioDevices.length} Mics, ${videoDevices.length} Cameras.`);
     } catch (err) {
-        console.error('Error enumerating media devices:', err);
+        console.error('Error enumerating hardware devices:', err);
     }
 }
 
 /**
- * Live switches the active camera device mid-call without dropping WebRTC connection.
+ * Dynamically switches active microphone hardware input without tearing down the WebRTC connection.
  */
-async function switchCamera(deviceId) {
-    if (!deviceId || !localStream) return;
-
-    const preset = QUALITY_PRESETS[currentQuality] || QUALITY_PRESETS.medium;
-    console.log(`Switching camera to deviceId: ${deviceId}`);
-
+async function switchMicrophone(deviceId: string): Promise<void> {
+    if (!deviceId) return;
     try {
-        // Request new video stream from target camera device
+        const newStream = await navigator.mediaDevices.getUserMedia({
+            audio: { 
+                deviceId: { exact: deviceId },
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
+
+        const newAudioTrack = newStream.getAudioTracks()[0];
+
+        if (localStream) {
+            const oldAudioTrack = localStream.getAudioTracks()[0];
+            if (oldAudioTrack) {
+                oldAudioTrack.stop();
+                localStream.removeTrack(oldAudioTrack);
+            }
+            localStream.addTrack(newAudioTrack);
+        }
+
+        if (currentCall && currentCall.peerConnection) {
+            const senders = currentCall.peerConnection.getSenders();
+            const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+            if (audioSender) {
+                await audioSender.replaceTrack(newAudioTrack);
+                console.log('RTCRtpSender audio track hot-swapped smoothly.');
+            }
+        }
+
+        showToast('Microphone switched successfully', 'success');
+        await populateDeviceLists();
+    } catch (err) {
+        console.error('Error switching microphone:', err);
+        showToast('Failed to switch microphone.', 'error');
+    }
+}
+
+/**
+ * Dynamically switches active camera hardware input without tearing down the WebRTC connection.
+ */
+async function switchCamera(deviceId: string): Promise<void> {
+    if (!deviceId) return;
+    try {
+        const preset = QUALITY_PRESETS[currentQuality];
         const newStream = await navigator.mediaDevices.getUserMedia({
             video: {
                 deviceId: { exact: deviceId },
@@ -766,85 +852,39 @@ async function switchCamera(deviceId) {
         });
 
         const newVideoTrack = newStream.getVideoTracks()[0];
-        const oldVideoTrack = localStream.getVideoTracks()[0];
 
-        // Stop previous video track hardware
-        if (oldVideoTrack) {
-            oldVideoTrack.stop();
-            localStream.removeTrack(oldVideoTrack);
+        if (localStream) {
+            const oldVideoTrack = localStream.getVideoTracks()[0];
+            if (oldVideoTrack) {
+                oldVideoTrack.stop();
+                localStream.removeTrack(oldVideoTrack);
+            }
+            localStream.addTrack(newVideoTrack);
         }
 
-        // Add new track to local stream and update video element
-        localStream.addTrack(newVideoTrack);
-        localVideo.srcObject = localStream;
+        if (localVideo) localVideo.srcObject = localStream;
 
-        // Replace track on active WebRTC peer connection senders
         if (currentCall && currentCall.peerConnection) {
             const senders = currentCall.peerConnection.getSenders();
             const videoSender = senders.find(s => s.track && s.track.kind === 'video');
             if (videoSender) {
                 await videoSender.replaceTrack(newVideoTrack);
-                console.log('RTCRtpSender replaceTrack succeeded for camera switch.');
+                console.log('RTCRtpSender video track hot-swapped smoothly.');
             }
         }
 
-        populateDeviceLists();
         showToast('Camera switched successfully', 'success');
+        await populateDeviceLists();
     } catch (err) {
-        console.error('Failed to switch camera:', err);
-        showToast('Failed to switch camera device', 'error');
+        console.error('Error switching camera:', err);
+        showToast('Failed to switch camera.', 'error');
     }
 }
 
 /**
- * Live switches the active microphone device mid-call without dropping WebRTC connection.
+ * Sets up global DOM event listeners for buttons, popovers, and device toggles.
  */
-async function switchMicrophone(deviceId) {
-    if (!deviceId || !localStream) return;
-
-    console.log(`Switching microphone to deviceId: ${deviceId}`);
-
-    try {
-        // Request new audio stream from target microphone device
-        const newStream = await navigator.mediaDevices.getUserMedia({
-            audio: { deviceId: { exact: deviceId } }
-        });
-
-        const newAudioTrack = newStream.getAudioTracks()[0];
-        const oldAudioTrack = localStream.getAudioTracks()[0];
-
-        // Stop previous audio track hardware
-        if (oldAudioTrack) {
-            oldAudioTrack.stop();
-            localStream.removeTrack(oldAudioTrack);
-        }
-
-        // Add new audio track to local stream
-        localStream.addTrack(newAudioTrack);
-
-        // Replace track on active WebRTC peer connection senders
-        if (currentCall && currentCall.peerConnection) {
-            const senders = currentCall.peerConnection.getSenders();
-            const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-            if (audioSender) {
-                await audioSender.replaceTrack(newAudioTrack);
-                console.log('RTCRtpSender replaceTrack succeeded for microphone switch.');
-            }
-        }
-
-        populateDeviceLists();
-        showToast('Microphone switched successfully', 'success');
-    } catch (err) {
-        console.error('Failed to switch microphone:', err);
-        showToast('Failed to switch microphone device', 'error');
-    }
-}
-
-// ==========================================
-// Media Track Toggle Logic (Microphone & Camera)
-// ==========================================
-
-function setupEventListeners() {
+function setupEventListeners(): void {
     const micPopover = document.getElementById('mic-popover');
     const cameraPopover = document.getElementById('camera-popover');
     const settingsPopover = document.getElementById('settings-popover');
@@ -857,7 +897,7 @@ function setupEventListeners() {
         infoBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             infoPanel.classList.remove('hidden');
-            const allPopovers = document.querySelectorAll('.dock-popover');
+            const allPopovers = document.querySelectorAll<HTMLElement>('.dock-popover');
             allPopovers.forEach(pop => { if (pop !== infoPanel) pop.classList.add('hidden'); });
         });
         closeInfoBtn.addEventListener('click', (e) => {
@@ -887,14 +927,13 @@ function setupEventListeners() {
         });
     }
 
-    // Auto-close popovers when clicking anywhere outside
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.dock-popover') && !e.target.closest('.floating-dock')) {
+        const target = e.target as HTMLElement;
+        if (!target.closest('.dock-popover') && !target.closest('.floating-dock')) {
             closeAllPopovers();
         }
     });
 
-    // Close on Escape key
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeAllPopovers();
@@ -921,35 +960,40 @@ function setupEventListeners() {
         screenshareBtn.addEventListener('click', toggleScreenShare);
     }
 
-    copyIdBtn.addEventListener('click', () => {
-        const idText = myIdDisplay.textContent;
-        if (idText && idText !== 'Generating ID...') {
-            copyToClipboard(idText);
-        }
-    });
+    if (copyIdBtn) {
+        copyIdBtn.addEventListener('click', () => {
+            const idText = myIdDisplay.textContent;
+            if (idText && idText !== 'Generating ID...') {
+                copyToClipboard(idText);
+            }
+        });
+    }
 
-    connectBtn.addEventListener('click', () => {
-        const remoteId = remoteIdInput.value.trim();
-        if (!remoteId) {
-            showToast('Please enter a valid Peer ID.', 'error');
-            return;
-        }
-        if (peer && remoteId === peer.id) {
-            alert('You cannot call your own Peer ID!');
-            return;
-        }
-        initiateCall(remoteId);
-    });
+    if (connectBtn) {
+        connectBtn.addEventListener('click', () => {
+            const remoteId = remoteIdInput.value.trim();
+            if (!remoteId) {
+                showToast('Please enter a valid Peer ID.', 'error');
+                return;
+            }
+            if (peer && remoteId === peer.id) {
+                alert('You cannot call your own Peer ID!');
+                return;
+            }
+            initiateCall(remoteId);
+        });
+    }
 
-    disconnectBtn.addEventListener('click', () => {
-        hangUpCall('Call Ended');
-    });
+    if (disconnectBtn) {
+        disconnectBtn.addEventListener('click', () => {
+            hangUpCall('Call Ended');
+        });
+    }
 
-    btnQualityHigh.addEventListener('click', () => setMediaQuality('high'));
-    btnQualityMedium.addEventListener('click', () => setMediaQuality('medium'));
-    btnQualityLow.addEventListener('click', () => setMediaQuality('low'));
+    if (btnQualityHigh) btnQualityHigh.addEventListener('click', () => setMediaQuality('high'));
+    if (btnQualityMedium) btnQualityMedium.addEventListener('click', () => setMediaQuality('medium'));
+    if (btnQualityLow) btnQualityLow.addEventListener('click', () => setMediaQuality('low'));
 
-    // Settings Popover Quality Buttons
     const popoverQualityHigh = document.getElementById('popover-quality-high');
     const popoverQualityMedium = document.getElementById('popover-quality-medium');
     const popoverQualityLow = document.getElementById('popover-quality-low');
@@ -966,16 +1010,21 @@ function setupEventListeners() {
         toggleCamBtn.addEventListener('click', handleCameraToggle);
     }
 
-    // Hardware Device Dropdown Change Handlers
     if (micSelect) {
-        micSelect.addEventListener('change', (e) => switchMicrophone(e.target.value));
+        micSelect.addEventListener('change', (e) => {
+            const target = e.target as HTMLSelectElement;
+            switchMicrophone(target.value);
+        });
     }
     if (cameraSelect) {
-        cameraSelect.addEventListener('change', (e) => switchCamera(e.target.value));
+        cameraSelect.addEventListener('change', (e) => {
+            const target = e.target as HTMLSelectElement;
+            switchCamera(target.value);
+        });
     }
 }
 
-function handleMicrophoneToggle() {
+function handleMicrophoneToggle(): void {
     if (!localStream || localStream.getAudioTracks().length === 0) {
         showToast('No active audio track available.', 'warning');
         return;
@@ -1012,7 +1061,7 @@ function handleMicrophoneToggle() {
     }
 }
 
-function handleCameraToggle() {
+function handleCameraToggle(): void {
     if (!localStream || localStream.getVideoTracks().length === 0) {
         showToast('No active video track available.', 'warning');
         return;
@@ -1053,11 +1102,8 @@ function handleCameraToggle() {
 
 /**
  * Initiates an outgoing WebRTC call to a specified remote peer.
- * Encapsulates the call logic in a try/catch block to prevent silent failures.
- * 
- * @param {string} remoteId - The PeerJS ID of the destination client.
  */
-function initiateCall(remoteId) {
+function initiateCall(remoteId: string): void {
     if (!localStream) {
         showToast('Local stream is not ready. Please grant camera and microphone access.', 'error');
         return;
@@ -1069,14 +1115,16 @@ function initiateCall(remoteId) {
     console.log(`Initiating outgoing call to peer: ${remoteId}`);
 
     try {
-        // Establish companion DataConnection for synchronized end-call signaling
-        const conn = peer.connect(remoteId);
-        setupDataConnection(conn);
+        if (peer) {
+            const conn = peer.connect(remoteId);
+            setupDataConnection(conn);
+        }
     } catch (e) {
         console.warn("Failed to create DataConnection side-channel:", e);
     }
 
     try {
+        if (!peer) throw new Error("PeerJS is not initialized.");
         const call = peer.call(remoteId, localStream);
         if (!call) throw new Error("PeerJS failed to create the call object.");
         setupCallEvents(call);
@@ -1089,16 +1137,13 @@ function initiateCall(remoteId) {
 
 /**
  * Handles an incoming WebRTC call from a remote peer.
- * Automatically answers the call with the local media stream.
- * 
- * @param {MediaConnection} call - The incoming PeerJS MediaConnection object.
  */
-function handleIncomingCall(call) {
+function handleIncomingCall(call: MediaConnection): void {
     try {
         remotePeerId = call.peer;
-        remoteIdInput.value = call.peer;
+        if (remoteIdInput) remoteIdInput.value = call.peer;
         isIntentionalDisconnect = false;
-        call.answer(localStream);
+        if (localStream) call.answer(localStream);
         setupCallEvents(call);
     } catch (e) {
         console.error("Failed to answer incoming call:", e);
@@ -1107,31 +1152,27 @@ function handleIncomingCall(call) {
 }
 
 /**
- * Binds lifecycle event listeners (stream, error, close) to a PeerJS MediaConnection.
- * Also invokes state-of-the-art codec manipulation on the underlying RTCPeerConnection.
- * 
- * @param {MediaConnection} call - The active PeerJS MediaConnection.
+ * Binds lifecycle event listeners to an active PeerJS MediaConnection.
  */
-function setupCallEvents(call) {
+function setupCallEvents(call: MediaConnection): void {
     currentCall = call;
 
     if (call.peerConnection) {
         enforcePreferredCodecs(call.peerConnection);
 
-        // Native RTCPeerConnection track listener to handle mobile stream reception
-        call.peerConnection.ontrack = (event) => {
+        call.peerConnection.ontrack = (event: RTCTrackEvent) => {
             if (event.streams && event.streams[0]) {
                 attachRemoteStream(event.streams[0]);
             }
         };
     }
 
-    connectBtn.style.display = 'none';
-    disconnectBtn.style.display = 'inline-flex';
+    if (connectBtn) connectBtn.style.display = 'none';
+    if (disconnectBtn) disconnectBtn.style.display = 'inline-flex';
     updateCallUIState(true);
 
-    call.on('stream', (remoteStream) => {
-        attachRemoteStream(remoteStream);
+    call.on('stream', (stream: MediaStream) => {
+        attachRemoteStream(stream);
     });
 
     call.on('close', () => {
@@ -1142,7 +1183,7 @@ function setupCallEvents(call) {
         }
     });
 
-    call.on('error', (err) => {
+    call.on('error', (err: unknown) => {
         console.error('Call error:', err);
         resetCallUI('Call Error');
     });
@@ -1154,19 +1195,17 @@ function setupCallEvents(call) {
 
 /**
  * Attaches a remote MediaStream to the remote video element and initializes post-processing.
- * 
- * @param {MediaStream} remoteStream 
  */
-function attachRemoteStream(remoteStream) {
-    if (!remoteStream) return;
+function attachRemoteStream(stream: MediaStream): void {
+    if (!stream) return;
     console.log('Attaching remote MediaStream to video element.');
-    remoteVideo.srcObject = remoteStream;
-
-    // Handle browser autoplay policy restrictions smoothly
-    remoteVideo.play().catch(e => console.warn('Remote video playback auto-handled:', e));
+    if (remoteVideo) {
+        remoteVideo.srcObject = stream;
+        remoteVideo.play().catch(e => console.warn('Remote video playback auto-handled:', e));
+    }
     
-    const upscaleCanvas = document.getElementById('upscale-canvas');
-    if (typeof initUpscaler === 'function' && upscaleCanvas) {
+    const upscaleCanvas = document.getElementById('upscale-canvas') as HTMLCanvasElement | null;
+    if (upscaleCanvas && remoteVideo) {
         initUpscaler(remoteVideo, upscaleCanvas);
     }
     
@@ -1179,7 +1218,7 @@ function attachRemoteStream(remoteStream) {
     setMediaQuality(currentQuality);
 }
 
-function monitorIceConnectionState(peerConnection) {
+function monitorIceConnectionState(peerConnection: RTCPeerConnection): void {
     peerConnection.oniceconnectionstatechange = () => {
         const iceState = peerConnection.iceConnectionState;
         console.log(`WebRTC ICE Connection State: ${iceState}`);
@@ -1209,10 +1248,9 @@ function monitorIceConnectionState(peerConnection) {
     };
 }
 
-function hangUpCall(statusText = 'Call Ended') {
+function hangUpCall(statusText: string = 'Call Ended'): void {
     isIntentionalDisconnect = true;
 
-    // Broadcast synchronized end-call signal via companion DataConnection
     if (dataConnection && dataConnection.open) {
         try {
             dataConnection.send({ type: 'end-call' });
@@ -1234,21 +1272,20 @@ function hangUpCall(statusText = 'Call Ended') {
     resetCallUI(statusText);
 }
 
-function resetCallUI(statusMessage) {
+function resetCallUI(statusMessage?: string): void {
     currentCall = null;
     if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
 
-    // Halt WebGL shader render loop to free GPU/CPU in lobby
     stopUpscaler();
 
-    remoteVideo.srcObject = null;
+    if (remoteVideo) remoteVideo.srcObject = null;
     if (remoteVideoPlaceholder) {
         remoteVideoPlaceholder.style.display = 'flex';
         setTimeout(() => { remoteVideoPlaceholder.style.opacity = '1'; }, 50);
     }
 
-    connectBtn.style.display = 'inline-flex';
-    disconnectBtn.style.display = 'none';
+    if (connectBtn) connectBtn.style.display = 'inline-flex';
+    if (disconnectBtn) disconnectBtn.style.display = 'none';
 
     updateCallUIState(false);
     stopTelemetry();
@@ -1257,13 +1294,11 @@ function resetCallUI(statusMessage) {
 
 /**
  * Updates the floating panel & dock layout depending on call state (lobby vs in-call).
- * 
- * @param {boolean} inCall - Whether an active call is established.
  */
-function updateCallUIState(inCall) {
+function updateCallUIState(inCall: boolean): void {
     const panelTitle = document.getElementById('panel-title');
     const callInfoSection = document.getElementById('call-info-section');
-    const preCallSections = document.querySelectorAll('.pre-call-only');
+    const preCallSections = document.querySelectorAll<HTMLElement>('.pre-call-only');
     const dockQualityGroup = document.getElementById('dock-quality-group');
     const dockEndCallGroup = document.getElementById('dock-end-call-group');
     const dockInCallTools = document.getElementById('dock-in-call-tools');
@@ -1301,13 +1336,14 @@ function updateCallUIState(inCall) {
 /**
  * Starts the live duration timer for active calls.
  */
-function startCallTimer() {
+function startCallTimer(): void {
     stopCallTimer();
     callStartTime = Date.now();
     const durationEl = document.getElementById('call-duration');
     if (!durationEl) return;
 
     callTimerInterval = setInterval(() => {
+        if (!callStartTime) return;
         const elapsedSec = Math.floor((Date.now() - callStartTime) / 1000);
         const mins = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
         const secs = String(elapsedSec % 60).padStart(2, '0');
@@ -1318,7 +1354,7 @@ function startCallTimer() {
 /**
  * Stops the live duration timer and resets display.
  */
-function stopCallTimer() {
+function stopCallTimer(): void {
     if (callTimerInterval) {
         clearInterval(callTimerInterval);
         callTimerInterval = null;
@@ -1330,7 +1366,7 @@ function stopCallTimer() {
 /**
  * Toggles WebRTC screen sharing using navigator.mediaDevices.getDisplayMedia.
  */
-async function toggleScreenShare() {
+async function toggleScreenShare(): Promise<void> {
     if (!currentCall || !currentCall.peerConnection) {
         showToast('Screen sharing is available during an active call.', 'warning');
         return;
@@ -1368,7 +1404,7 @@ async function toggleScreenShare() {
 /**
  * Reverts screen share back to local camera hardware.
  */
-async function stopScreenShare() {
+async function stopScreenShare(): Promise<void> {
     if (!isScreenSharing) return;
     isScreenSharing = false;
 
@@ -1397,7 +1433,7 @@ async function stopScreenShare() {
 // Telemetry (Bandwidth Monitoring)
 // ==========================================
 
-function startTelemetry() {
+function startTelemetry(): void {
     if (telemetryIntervalId) clearInterval(telemetryIntervalId);
     lastBytesSent = 0;
     lastBytesReceived = 0;
@@ -1411,13 +1447,13 @@ function startTelemetry() {
             let bytesSent = 0;
             let bytesReceived = 0;
             
-            stats.forEach(report => {
+            stats.forEach((report: any) => {
                 if (report.type === 'outbound-rtp' && report.bytesSent) bytesSent += report.bytesSent;
                 if (report.type === 'inbound-rtp' && report.bytesReceived) bytesReceived += report.bytesReceived;
             });
             
             const now = performance.now();
-            const timeDelta = (now - lastTimestamp) / 1000; // seconds
+            const timeDelta = (now - lastTimestamp) / 1000;
             
             if (timeDelta > 0) {
                 const uploadBps = ((bytesSent - lastBytesSent) * 8) / timeDelta;
@@ -1436,7 +1472,7 @@ function startTelemetry() {
     }, 1000);
 }
 
-function stopTelemetry() {
+function stopTelemetry(): void {
     if (telemetryIntervalId) {
         clearInterval(telemetryIntervalId);
         telemetryIntervalId = null;
@@ -1449,7 +1485,7 @@ function stopTelemetry() {
 // Quality Constraints & Bandwidth Manipulation
 // ==========================================
 
-function setMediaQuality(qualityLevel) {
+function setMediaQuality(qualityLevel: QualityLevel): Promise<void> {
     if (!QUALITY_PRESETS[qualityLevel]) return Promise.resolve();
 
     qualityChangeQueue = qualityChangeQueue.then(async () => {
@@ -1463,17 +1499,17 @@ function setMediaQuality(qualityLevel) {
     return qualityChangeQueue;
 }
 
-async function executeQualityChange(qualityLevel) {
+async function executeQualityChange(qualityLevel: QualityLevel): Promise<void> {
     currentQuality = qualityLevel;
     const preset = QUALITY_PRESETS[qualityLevel];
 
-    btnQualityHigh.classList.remove('active');
-    btnQualityMedium.classList.remove('active');
-    btnQualityLow.classList.remove('active');
+    if (btnQualityHigh) btnQualityHigh.classList.remove('active');
+    if (btnQualityMedium) btnQualityMedium.classList.remove('active');
+    if (btnQualityLow) btnQualityLow.classList.remove('active');
 
-    if (qualityLevel === 'high') btnQualityHigh.classList.add('active');
-    else if (qualityLevel === 'medium') btnQualityMedium.classList.add('active');
-    else if (qualityLevel === 'low') btnQualityLow.classList.add('active');
+    if (qualityLevel === 'high' && btnQualityHigh) btnQualityHigh.classList.add('active');
+    else if (qualityLevel === 'medium' && btnQualityMedium) btnQualityMedium.classList.add('active');
+    else if (qualityLevel === 'low' && btnQualityLow) btnQualityLow.classList.add('active');
 
     updatePopoverQualityButtons(qualityLevel);
 
@@ -1501,7 +1537,7 @@ async function executeQualityChange(qualityLevel) {
                 try {
                     const parameters = sender.getParameters();
                     if (!parameters.encodings || parameters.encodings.length === 0) {
-                        parameters.encodings = [{}];
+                        parameters.encodings = [{} as RTCRtpEncodingParameters];
                     }
                     parameters.encodings[0].maxBitrate = preset.videoMaxBitrate;
                     
@@ -1516,7 +1552,7 @@ async function executeQualityChange(qualityLevel) {
                 try {
                     const parameters = sender.getParameters();
                     if (!parameters.encodings || parameters.encodings.length === 0) {
-                        parameters.encodings = [{}];
+                        parameters.encodings = [{} as RTCRtpEncodingParameters];
                     }
                     parameters.encodings[0].maxBitrate = preset.audioMaxBitrate;
 
@@ -1532,21 +1568,20 @@ async function executeQualityChange(qualityLevel) {
 }
 
 // ==========================================
-// Codec Enforcement (AV1 / VP9)
+// Codec Enforcement (AV1 / VP9 / Opus)
 // ==========================================
 
-function enforcePreferredCodecs(peerConnection) {
+function enforcePreferredCodecs(peerConnection: RTCPeerConnection): void {
     if (!peerConnection || typeof RTCRtpReceiver === 'undefined' || !('getCapabilities' in RTCRtpReceiver)) {
         return;
     }
 
     try {
-        // --- Video Codec Enforcement (AV1 -> VP9 -> H264) ---
         const videoCapabilities = RTCRtpReceiver.getCapabilities('video');
-        let sortedVideoCodecs = null;
+        let sortedVideoCodecs: any[] | null = null;
         if (videoCapabilities && videoCapabilities.codecs) {
-            const preferredVideo = [];
-            const otherVideo = [];
+            const preferredVideo: any[] = [];
+            const otherVideo: any[] = [];
             videoCapabilities.codecs.forEach(codec => {
                 const mimeType = codec.mimeType.toLowerCase();
                 if (mimeType.includes('video/av1')) preferredVideo.push(codec);
@@ -1559,16 +1594,14 @@ function enforcePreferredCodecs(peerConnection) {
             }
         }
 
-        // --- Audio Codec Enforcement (Opus) ---
         const audioCapabilities = RTCRtpReceiver.getCapabilities('audio');
-        let sortedAudioCodecs = null;
+        let sortedAudioCodecs: any[] | null = null;
         if (audioCapabilities && audioCapabilities.codecs) {
-            const preferredAudio = [];
-            const otherAudio = [];
+            const preferredAudio: any[] = [];
+            const otherAudio: any[] = [];
             audioCapabilities.codecs.forEach(codec => {
                 const mimeType = codec.mimeType.toLowerCase();
                 if (mimeType.includes('audio/opus')) {
-                    // Force stereo in SDP parameter if we can, but at least prioritize Opus
                     preferredAudio.push(codec);
                 } else {
                     otherAudio.push(codec);
@@ -1579,7 +1612,6 @@ function enforcePreferredCodecs(peerConnection) {
             }
         }
 
-        // --- Apply Preferences to Transceivers ---
         const transceivers = peerConnection.getTransceivers();
         transceivers.forEach(transceiver => {
             if (!transceiver.receiver || !transceiver.receiver.track) return;
@@ -1603,7 +1635,7 @@ function enforcePreferredCodecs(peerConnection) {
 // Helper Utility Functions
 // ==========================================
 
-function updateStatus(message, state = 'warning') {
+function updateStatus(message: string, state: ConnectionBadgeState = 'warning'): void {
     if (connectionStatus) {
         connectionStatus.textContent = message;
     }
@@ -1614,7 +1646,7 @@ function updateStatus(message, state = 'warning') {
     }
 }
 
-function showToast(message, type = 'info') {
+function showToast(message: string, type: ToastType = 'info'): void {
     if (!toastContainer) return;
 
     const toast = document.createElement('div');
@@ -1637,7 +1669,7 @@ function showToast(message, type = 'info') {
     }, 3500);
 }
 
-function copyToClipboard(text) {
+function copyToClipboard(text: string): void {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
             showToast('Peer ID copied to clipboard!', 'success');
@@ -1647,7 +1679,7 @@ function copyToClipboard(text) {
     }
 }
 
-function fallbackCopy(text) {
+function fallbackCopy(text: string): void {
     const textArea = document.createElement('textarea');
     textArea.value = text;
     document.body.appendChild(textArea);
@@ -1661,7 +1693,7 @@ function fallbackCopy(text) {
     document.body.removeChild(textArea);
 }
 
-function updatePopoverQualityButtons(qualityLevel) {
+function updatePopoverQualityButtons(qualityLevel: QualityLevel): void {
     const popoverQualityHigh = document.getElementById('popover-quality-high');
     const popoverQualityMedium = document.getElementById('popover-quality-medium');
     const popoverQualityLow = document.getElementById('popover-quality-low');
@@ -1681,7 +1713,7 @@ function updatePopoverQualityButtons(qualityLevel) {
 window.addEventListener('beforeunload', cleanupResources);
 window.addEventListener('pagehide', cleanupResources);
 
-function cleanupResources() {
+function cleanupResources(): void {
     stopUpscaler();
     if (localStream) {
         localStream.getTracks().forEach(track => {

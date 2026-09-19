@@ -4,7 +4,10 @@
   "description": "A client-side Peer-to-Peer video calling web application built with HTML5, CSS3, Vanilla JavaScript, WebRTC, and PeerJS.",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "watch": "tsc --watch",
+    "test": "playwright test"
   },
   "repository": {
     "type": "git",
@@ -20,6 +23,8 @@
   "homepage": "https://github.com/sagnikrout/Video_Call#readme",
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "serve": "^14.2.6"
+    "@types/node": "^26.6.2",
+    "serve": "^14.2.6",
+    "typescript": "^7.0.2"
   }
 }
