@@ -99,7 +99,7 @@ let callStartTime: number | null = null;
 let callTimerInterval: ReturnType<typeof setInterval> | null = null;
 let isScreenSharing: boolean = false;
 let screenStream: MediaStream | null = null;
-let isMonochromeMode: boolean = false;
+let isMonochromeMode: boolean = true;
 let isCircularMode: boolean = false;
 
 // Companion Data Connection & Disconnect Synchronization
@@ -111,24 +111,24 @@ let qualityChangeQueue: Promise<void> = Promise.resolve();
 
 const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
     high: {
-        width: 2560,
-        height: 1440,
+        width: 1920,
+        height: 1080,
         frameRate: 60,
-        videoMaxBitrate: 8000000, // 8.0 Mbps
+        videoMaxBitrate: 6000000, // 6.0 Mbps Ultra 1080p
         audioMaxBitrate: 256000   // 256 kbps
     },
     medium: {
         width: 1920,
         height: 1080,
         frameRate: 60,
-        videoMaxBitrate: 4000000, // 4.0 Mbps
+        videoMaxBitrate: 4500000, // 4.5 Mbps Studio 1080p
         audioMaxBitrate: 128000   // 128 kbps
     },
     low: {
-        width: 1280,
-        height: 720,
-        frameRate: 30,
-        videoMaxBitrate: 1500000, // 1.5 Mbps
+        width: 1920,
+        height: 1080,
+        frameRate: 60,
+        videoMaxBitrate: 2500000, // 2.5 Mbps Eco 1080p
         audioMaxBitrate: 64000    // 64 kbps
     }
 };
@@ -210,11 +210,17 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
             uniform sampler2D u_image;
             uniform vec2 u_resolution;
             uniform vec2 u_scale;
-            uniform float u_grayscale;
             varying vec2 v_texCoord;
 
             const float gamma = 1.05;
             const float contrast = 1.15;
+
+            // Rec.709 ITU High-Precision Luma Weights for Pure Black & White
+            const vec3 lumaWeights = vec3(0.2126, 0.7152, 0.0722);
+
+            float getLuma(vec4 color) {
+                return dot(color.rgb, lumaWeights);
+            }
 
             void main() {
                 vec2 uv = (v_texCoord - 0.5) * u_scale + 0.5;
@@ -225,31 +231,43 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
                 }
 
                 vec2 texelSize = 1.0 / u_resolution;
+                
+                // Physical RGB Subpixel Horizontal Displacement (-1/3 texel, 0, +1/3 texel)
+                float subOffset = texelSize.x * 0.333333;
+                vec2 uvR = uv - vec2(subOffset, 0.0);
+                vec2 uvG = uv;
+                vec2 uvB = uv + vec2(subOffset, 0.0);
 
-                vec4 center = texture2D(u_image, uv);
-                vec4 top    = texture2D(u_image, uv + vec2(0.0, -texelSize.y));
-                vec4 bottom = texture2D(u_image, uv + vec2(0.0, texelSize.y));
-                vec4 left   = texture2D(u_image, uv + vec2(-texelSize.x, 0.0));
-                vec4 right  = texture2D(u_image, uv + vec2(texelSize.x, 0.0));
-                vec4 tl     = texture2D(u_image, uv + vec2(-texelSize.x, -texelSize.y));
-                vec4 tr     = texture2D(u_image, uv + vec2(texelSize.x, -texelSize.y));
-                vec4 bl     = texture2D(u_image, uv + vec2(-texelSize.x, texelSize.y));
-                vec4 br     = texture2D(u_image, uv + vec2(texelSize.x, texelSize.y));
+                // Sample centers at exact physical subpixel spatial coordinates
+                float centerR = getLuma(texture2D(u_image, uvR));
+                float centerG = getLuma(texture2D(u_image, uvG));
+                float centerB = getLuma(texture2D(u_image, uvB));
 
-                float sharpness = 1.0; 
-                vec4 edge = center * 8.0 - (top + bottom + left + right + tl + tr + bl + br);
-                vec4 color = center + (edge * sharpness * 0.15);
+                // 3x3 Convolution neighborhood for localized high-frequency edge enhancement
+                float top    = getLuma(texture2D(u_image, uv + vec2(0.0, -texelSize.y)));
+                float bottom = getLuma(texture2D(u_image, uv + vec2(0.0,  texelSize.y)));
+                float left   = getLuma(texture2D(u_image, uv + vec2(-texelSize.x, 0.0)));
+                float right  = getLuma(texture2D(u_image, uv + vec2( texelSize.x, 0.0)));
 
-                color.rgb = (color.rgb - 0.5) * contrast + 0.5;
-                color.rgb = pow(abs(color.rgb), vec3(1.0 / gamma));
+                float surround = (top + bottom + left + right) * 0.25;
 
-                if (u_grayscale > 0.0) {
-                    float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                    color.rgb = mix(color.rgb, vec3(luma), u_grayscale);
-                }
+                // Independent subpixel edge reconstruction
+                float edgeR = centerR - surround;
+                float edgeG = centerG - surround;
+                float edgeB = centerB - surround;
 
-                gl_FragColor = clamp(color, 0.0, 1.0);
-                gl_FragColor.a = 1.0;
+                const float sharpness = 0.25;
+                float lumR = centerR + edgeR * sharpness;
+                float lumG = centerG + edgeG * sharpness;
+                float lumB = centerB + edgeB * sharpness;
+
+                // Contrast & gamma correction on pure luminance channels
+                vec3 finalLum = vec3(lumR, lumG, lumB);
+                finalLum = (finalLum - 0.5) * contrast + 0.5;
+                finalLum = pow(abs(finalLum), vec3(1.0 / gamma));
+
+                // Output physical subpixel grayscale matrix (Red, Green, Blue subpixels each emit distinct luminance)
+                gl_FragColor = vec4(clamp(finalLum, 0.0, 1.0), 1.0);
             }
         `;
 
@@ -322,7 +340,6 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
 
         const resolutionLocation = gl.getUniformLocation(shaderProgram, "u_resolution");
         const scaleLocation = gl.getUniformLocation(shaderProgram, "u_scale");
-        const grayscaleLocation = gl.getUniformLocation(shaderProgram, "u_grayscale");
 
         function renderLoop(): void {
             if (!videoElement.paused && !videoElement.ended && videoElement.videoWidth > 0) {
@@ -339,7 +356,6 @@ function initUpscaler(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasE
                 gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, videoElement);
 
                 gl!.uniform2f(resolutionLocation, videoElement.videoWidth, videoElement.videoHeight);
-                gl!.uniform1f(grayscaleLocation, isMonochromeMode ? 1.0 : 0.0);
 
                 const canvasAspect = displayWidth / displayHeight;
                 const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
@@ -473,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
  * Main initialization workflow: setup event listeners, PeerJS signaling, drag engine, and request media hardware.
  */
 async function initializeApplication(): Promise<void> {
+    setMonochromeMode(true);
     setupEventListeners();
     initializePeer();
     
@@ -1694,13 +1711,8 @@ async function executeQualityChange(qualityLevel: QualityLevel): Promise<void> {
             }
         }
     }
-    if (qualityLevel === 'low') {
-        setMonochromeMode(true);
-        showToast('Quality set to Low (B&W Bandwidth Saver)', 'info');
-    } else {
-        setMonochromeMode(false);
-        showToast(`Quality set to ${qualityLevel.charAt(0).toUpperCase() + qualityLevel.slice(1)}`, 'info');
-    }
+    setMonochromeMode(true);
+    showToast(`Quality set to ${qualityLevel.charAt(0).toUpperCase() + qualityLevel.slice(1)} (1080p Subpixel Mono)`, 'info');
 }
 
 // ==========================================
