@@ -126,15 +126,16 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await expect(page.locator('.toast-item.toast-info').last()).toHaveText(/Quality set to High/);
   });
 
-  test('7. Permanent 10-Digit Identifier Persistence in LocalStorage', async ({ page }) => {
+  test('7. Permanent Cryptographic Identifier Persistence in Storage', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
     const idFirst = await page.locator('#my-id-display').textContent();
     
-    // Verify 10-digit phone format XXX-XXX-XXXX
-    expect(idFirst).toMatch(/^\d{3}-\d{3}-\d{4}$/);
+    // Verify 32-digit format in 8 groups of 4 digits (XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX)
+    expect(idFirst.replace(/\D/g, '').length).toBe(32);
+    expect(idFirst).toMatch(/^(\d{4}-){7}\d{4}$/);
 
-    // Verify localStorage persistence across page reloads
+    // Verify storage persistence across page reloads
     await page.reload();
     await expect(page.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
     const idSecond = await page.locator('#my-id-display').textContent();

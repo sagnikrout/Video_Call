@@ -107,16 +107,23 @@ declare let isIntentionalDisconnect: boolean;
 declare let myPermanent10DigitId: string;
 declare let activeEphemeralSessionId: string | null;
 /**
- * Retrieves the user's permanent 10-digit ID from localStorage, or cryptographically
- * generates a fresh 10-digit number and persists it.
+ * Generates a cryptographically secure 32-digit decimal identifier.
+ * Space: 10^32 combinations (~106 bits entropy).
+ * Birthday Paradox collision probability across 10 billion humans: P < 5e-13 (1 in 2 trillion).
+ */
+declare function generateSecure32DigitId(): string;
+/**
+ * Retrieves the user's permanent identifier from sessionStorage/localStorage,
+ * or cryptographically generates a fresh 32-digit number and persists it.
  */
 declare function getOrCreatePermanentId(): string;
 /**
- * Formats a 10-digit string into standard phone-style notation (XXX-XXX-XXXX).
+ * Formats a numeric identifier into clean 4-digit groups (XXXX-XXXX-XXXX-...).
+ * Supports 10-digit legacy phone-style format (XXX-XXX-XXXX) and 32-digit format.
  */
 declare function format10DigitId(id: string): string;
 /**
- * Strips formatting, prefixes, and non-numeric characters to extract the raw 10 digits.
+ * Strips formatting, prefixes, and non-numeric characters to extract the raw digits.
  */
 declare function clean10DigitId(input: string): string;
 declare let qualityChangeQueue: Promise<void>;

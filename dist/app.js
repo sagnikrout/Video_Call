@@ -29,43 +29,61 @@ let speechDetectionInterval = null;
 // Companion Data Connection & Disconnect Synchronization
 let dataConnection = null;
 let isIntentionalDisconnect = false;
-// Permanent 10-Digit Identifier & Ephemeral Session State
+// Permanent Cryptographic Identifier (32-Digit Space: 10^32 combinations) & Ephemeral Session State
 let myPermanent10DigitId = '';
 let activeEphemeralSessionId = null;
 /**
- * Retrieves the user's permanent 10-digit ID from localStorage, or cryptographically
- * generates a fresh 10-digit number and persists it.
+ * Generates a cryptographically secure 32-digit decimal identifier.
+ * Space: 10^32 combinations (~106 bits entropy).
+ * Birthday Paradox collision probability across 10 billion humans: P < 5e-13 (1 in 2 trillion).
+ */
+function generateSecure32DigitId() {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    let result = '';
+    result += ((array[0] % 9) + 1).toString();
+    for (let i = 1; i < 32; i++) {
+        result += (array[i] % 10).toString();
+    }
+    return result;
+}
+/**
+ * Retrieves the user's permanent identifier from sessionStorage/localStorage,
+ * or cryptographically generates a fresh 32-digit number and persists it.
  */
 function getOrCreatePermanentId() {
     try {
         const sessionStored = sessionStorage.getItem('darpan_permanent_id');
-        if (sessionStored && /^\d{10}$/.test(sessionStored)) {
+        if (sessionStored && /^\d{10,64}$/.test(sessionStored)) {
             return sessionStored;
         }
-        const array = new Uint32Array(2);
-        crypto.getRandomValues(array);
-        const randVal = (array[0] % 9000000000) + 1000000000;
-        const freshId = randVal.toString();
+        const freshId = generateSecure32DigitId();
         sessionStorage.setItem('darpan_permanent_id', freshId);
         localStorage.setItem('darpan_permanent_id', freshId);
         return freshId;
     }
     catch (e) {
-        const randVal = Math.floor(1000000000 + Math.random() * 9000000000);
-        return randVal.toString();
+        let fallback = '';
+        for (let i = 0; i < 32; i++) {
+            fallback += Math.floor(i === 0 ? 1 + Math.random() * 9 : Math.random() * 10).toString();
+        }
+        return fallback;
     }
 }
 /**
- * Formats a 10-digit string into standard phone-style notation (XXX-XXX-XXXX).
+ * Formats a numeric identifier into clean 4-digit groups (XXXX-XXXX-XXXX-...).
+ * Supports 10-digit legacy phone-style format (XXX-XXX-XXXX) and 32-digit format.
  */
 function format10DigitId(id) {
     const cleaned = id.replace(/\D/g, '');
-    if (cleaned.length !== 10)
-        return id;
-    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
+    if (cleaned.length === 10) {
+        return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
+    }
+    const chunks = cleaned.match(/.{1,4}/g);
+    return chunks ? chunks.join('-') : id;
 }
 /**
- * Strips formatting, prefixes, and non-numeric characters to extract the raw 10 digits.
+ * Strips formatting, prefixes, and non-numeric characters to extract the raw digits.
  */
 function clean10DigitId(input) {
     if (!input)
@@ -1210,14 +1228,22 @@ function setupEventListeners() {
             const val = remoteIdInput.value;
             if (/^[\d-]+$/.test(val)) {
                 const digits = val.replace(/\D/g, '');
-                if (digits.length <= 3) {
-                    remoteIdInput.value = digits;
-                }
-                else if (digits.length <= 6) {
-                    remoteIdInput.value = `${digits.slice(0, 3)}-${digits.slice(3)}`;
+                if (digits.length <= 10) {
+                    if (digits.length <= 3) {
+                        remoteIdInput.value = digits;
+                    }
+                    else if (digits.length <= 6) {
+                        remoteIdInput.value = `${digits.slice(0, 3)}-${digits.slice(3)}`;
+                    }
+                    else {
+                        remoteIdInput.value = `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+                    }
                 }
                 else {
-                    remoteIdInput.value = `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+                    const chunks = digits.match(/.{1,4}/g);
+                    if (chunks) {
+                        remoteIdInput.value = chunks.join('-');
+                    }
                 }
             }
         });
@@ -1366,7 +1392,7 @@ function initiateCall(remoteId) {
         alert('You cannot call your own Peer ID!');
         return;
     }
-    const targetSignalingId = clean.length === 10 ? ('darpan-' + clean) : (remoteId.startsWith('darpan-') ? remoteId : ('darpan-' + remoteId));
+    const targetSignalingId = clean.length >= 10 ? ('darpan-' + clean) : (remoteId.startsWith('darpan-') ? remoteId : ('darpan-' + remoteId));
     remotePeerId = targetSignalingId;
     isIntentionalDisconnect = false;
     // Ephemeral session nonce for this 1-on-1 call
@@ -1608,7 +1634,7 @@ function updateCallUIState(inCall) {
             dockInCallTools.classList.remove('hidden');
         if (callParticipant) {
             const clean = clean10DigitId(remotePeerId);
-            const idToDisplay = clean.length === 10 ? format10DigitId(clean) : (remotePeerId ? (remotePeerId.substring(0, 12) + '...') : 'Remote Peer');
+            const idToDisplay = clean.length >= 10 ? format10DigitId(clean) : (remotePeerId ? (remotePeerId.substring(0, 12) + '...') : 'Remote Peer');
             callParticipant.textContent = idToDisplay;
         }
         startCallTimer();
