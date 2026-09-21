@@ -35,7 +35,7 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await page.click('#info-btn');
     await page.click('#connect-btn');
     const toastEmpty = page.locator('.toast-item.toast-error').first();
-    await expect(toastEmpty).toHaveText(/Please enter a valid Peer ID/);
+    await expect(toastEmpty).toHaveText(/Please enter a valid Darpan Number/);
     
     // Attempt invalid format/non-existent connection
     await page.fill('#remote-id-input', 'invalid-fake-id-12345');
@@ -131,9 +131,9 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await expect(page.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
     const idFirst = await page.locator('#my-id-display').textContent();
     
-    // Verify 32-digit format in 8 groups of 4 digits (XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX)
-    expect(idFirst.replace(/\D/g, '').length).toBe(32);
-    expect(idFirst).toMatch(/^(\d{4}-){7}\d{4}$/);
+    // Verify 20-char Base36 format in 5 groups of 4 (XXXX-XXXX-XXXX-XXXX-XXXX), case-insensitive
+    expect(idFirst.replace(/[^A-Z0-9]/gi, '').length).toBe(20);
+    expect(idFirst).toMatch(/^([0-9A-Z]{4}-){4}[0-9A-Z]{4}$/i);
 
     // Verify storage persistence across page reloads
     await page.reload();

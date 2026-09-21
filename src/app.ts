@@ -122,68 +122,57 @@ let speechDetectionInterval: ReturnType<typeof setInterval> | null = null;
 let dataConnection: DataConnection | null = null;
 let isIntentionalDisconnect: boolean = false;
 
-// Permanent Cryptographic Identifier (32-Digit Space: 10^32 combinations) & Ephemeral Session State
-let myPermanent10DigitId: string = '';
+// Permanent Cryptographic Darpan Identifier (Base36, 20-char: 36^20 ≈ 1.33×10^31 combinations) & Ephemeral Session State
+let localDarpanId: string = '';
 let activeEphemeralSessionId: string | null = null;
 
 /**
- * Generates a cryptographically secure 32-digit decimal identifier.
- * Space: 10^32 combinations (~106 bits entropy).
- * Birthday Paradox collision probability across 10 billion humans: P < 5e-13 (1 in 2 trillion).
+ * Generates a cryptographically secure 20-character Base36 identifier.
+ * Alphabet: 0-9 A-Z (case-insensitive). Space: 36^20 ≈ 1.33×10^31 combinations (~104 bits entropy).
+ * Birthday Paradox collision probability across 10 billion humans: P < 3.8×10^-12 (1 in 260 billion).
  */
-function generateSecure32DigitId(): string {
-    const array = new Uint8Array(32);
+function generateSecureBase36Id(): string {
+    const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const array = new Uint8Array(20);
     crypto.getRandomValues(array);
-    let result = '';
-    result += ((array[0] % 9) + 1).toString();
-    for (let i = 1; i < 32; i++) {
-        result += (array[i] % 10).toString();
-    }
-    return result;
+    return Array.from(array).map(b => CHARS[b % 36]).join('');
 }
 
 /**
- * Retrieves the user's permanent identifier from sessionStorage/localStorage,
- * or cryptographically generates a fresh 32-digit number and persists it.
+ * Retrieves the user's permanent Darpan identifier from sessionStorage/localStorage,
+ * or cryptographically generates a fresh Base36 ID and persists it.
  */
 function getOrCreatePermanentId(): string {
     try {
         const sessionStored = sessionStorage.getItem('darpan_permanent_id');
-        if (sessionStored && /^\d{10,64}$/.test(sessionStored)) {
-            return sessionStored;
+        if (sessionStored && /^[0-9A-Z]{20}$/i.test(sessionStored)) {
+            return sessionStored.toUpperCase();
         }
-        const freshId = generateSecure32DigitId();
+        const freshId = generateSecureBase36Id();
         sessionStorage.setItem('darpan_permanent_id', freshId);
         localStorage.setItem('darpan_permanent_id', freshId);
         return freshId;
     } catch (e) {
-        let fallback = '';
-        for (let i = 0; i < 32; i++) {
-            fallback += Math.floor(i === 0 ? 1 + Math.random() * 9 : Math.random() * 10).toString();
-        }
-        return fallback;
+        return generateSecureBase36Id();
     }
 }
 
 /**
- * Formats a numeric identifier into clean 4-digit groups (XXXX-XXXX-XXXX-...).
- * Supports 10-digit legacy phone-style format (XXX-XXX-XXXX) and 32-digit format.
+ * Formats a Base36 string into clean 4-character groups (XXXX-XXXX-XXXX-XXXX-XXXX).
+ * Output is always uppercase. Input may contain dashes or mixed case.
  */
-function format10DigitId(id: string): string {
-    const cleaned = id.replace(/\D/g, '');
-    if (cleaned.length === 10) {
-        return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
-    }
+function formatDarpanId(id: string): string {
+    const cleaned = cleanDarpanId(id);
     const chunks = cleaned.match(/.{1,4}/g);
-    return chunks ? chunks.join('-') : id;
+    return chunks ? chunks.join('-') : id.toUpperCase();
 }
 
 /**
- * Strips formatting, prefixes, and non-numeric characters to extract the raw digits.
+ * Strips dashes, spaces, and the darpan- prefix; normalizes to uppercase Base36.
  */
-function clean10DigitId(input: string): string {
+function cleanDarpanId(input: string): string {
     if (!input) return '';
-    return input.replace(/^darpan-/, '').replace(/\D/g, '');
+    return input.replace(/^darpan-/i, '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
 }
 
 // Asynchronous mutex chain to queue quality modifications and prevent concurrent setParameters calls
@@ -781,8 +770,8 @@ function makeElementDraggable(el: HTMLElement): void {
 function initializePeer(): void {
     updateStatus('Connecting to signaling server...', 'warning');
     
-    myPermanent10DigitId = getOrCreatePermanentId();
-    const signalingId = 'darpan-' + myPermanent10DigitId;
+    localDarpanId = getOrCreatePermanentId();
+    const signalingId = 'darpan-' + localDarpanId;
 
     peer = new Peer(signalingId, {
         config: {
@@ -807,10 +796,10 @@ function initializePeer(): void {
 
     peer.on('open', (id: string) => {
         console.log('PeerJS connection open. Assigned Local Peer ID:', id);
-        const displayId = format10DigitId(myPermanent10DigitId);
+        const displayId = formatDarpanId(localDarpanId);
         if (myIdDisplay) myIdDisplay.textContent = displayId;
         updateStatus('Awaiting Connection', 'warning');
-        showToast('Registered with 10-digit number: ' + displayId, 'success');
+        showToast('Darpan Number registered: ' + displayId, 'success');
     });
 
     peer.on('call', (incomingCall: MediaConnection) => {
@@ -836,13 +825,11 @@ function initializePeer(): void {
             showToast('Could not connect to peer', 'error');
             updateStatus('Peer Unavailable', 'disconnected');
         } else if (err.type === 'unavailable-id') {
-            console.warn('ID collision on signaling server. Regenerating 10-digit number...');
-            const array = new Uint32Array(2);
-            crypto.getRandomValues(array);
-            const freshId = ((array[0] % 9000000000) + 1000000000).toString();
+            console.warn('ID collision on signaling server. Regenerating Darpan ID...');
+            const freshId = generateSecureBase36Id();
             sessionStorage.setItem('darpan_permanent_id', freshId);
             localStorage.setItem('darpan_permanent_id', freshId);
-            myPermanent10DigitId = freshId;
+            localDarpanId = freshId;
             try { peer?.destroy(); } catch (e) {}
             initializePeer();
         } else {
@@ -874,7 +861,7 @@ function setupDataConnection(conn: DataConnection): void {
             conn.send({
                 type: 'HANDSHAKE_INIT',
                 sessionId: activeEphemeralSessionId,
-                sender10DigitId: myPermanent10DigitId,
+                senderId: localDarpanId,
                 timestamp: Date.now()
             });
         }
@@ -898,7 +885,7 @@ function setupDataConnection(conn: DataConnection): void {
                 conn.send({
                     type: 'HANDSHAKE_ACK',
                     sessionId: activeEphemeralSessionId,
-                    recipient10DigitId: myPermanent10DigitId
+                    recipientId: localDarpanId
                 });
             }
         }
@@ -1420,24 +1407,9 @@ function setupEventListeners(): void {
 
     if (remoteIdInput) {
         remoteIdInput.addEventListener('input', () => {
-            const val = remoteIdInput.value;
-            if (/^[\d-]+$/.test(val)) {
-                const digits = val.replace(/\D/g, '');
-                if (digits.length <= 10) {
-                    if (digits.length <= 3) {
-                        remoteIdInput.value = digits;
-                    } else if (digits.length <= 6) {
-                        remoteIdInput.value = `${digits.slice(0, 3)}-${digits.slice(3)}`;
-                    } else {
-                        remoteIdInput.value = `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
-                    }
-                } else {
-                    const chunks = digits.match(/.{1,4}/g);
-                    if (chunks) {
-                        remoteIdInput.value = chunks.join('-');
-                    }
-                }
-            }
+            const raw = remoteIdInput.value.toUpperCase().replace(/[^0-9A-Z]/g, '');
+            const chunks = raw.match(/.{1,4}/g);
+            remoteIdInput.value = chunks ? chunks.join('-') : raw;
         });
     }
 
@@ -1445,12 +1417,12 @@ function setupEventListeners(): void {
         connectBtn.addEventListener('click', () => {
             const remoteId = remoteIdInput.value.trim();
             if (!remoteId) {
-                showToast('Please enter a valid Peer ID.', 'error');
+                showToast('Please enter a valid Darpan Number.', 'error');
                 return;
             }
-            const clean = clean10DigitId(remoteId);
-            if (myPermanent10DigitId && (clean === myPermanent10DigitId || remoteId === ('darpan-' + myPermanent10DigitId))) {
-                alert('You cannot call your own Peer ID!');
+            const clean = cleanDarpanId(remoteId);
+            if (localDarpanId && (clean === localDarpanId || remoteId === ('darpan-' + localDarpanId))) {
+                alert('You cannot call your own Darpan Number!');
                 return;
             }
             initiateCall(remoteId);
@@ -1586,13 +1558,13 @@ function initiateCall(remoteId: string): void {
         return;
     }
 
-    const clean = clean10DigitId(remoteId);
-    if (myPermanent10DigitId && (clean === myPermanent10DigitId || remoteId === ('darpan-' + myPermanent10DigitId))) {
-        alert('You cannot call your own Peer ID!');
+    const clean = cleanDarpanId(remoteId);
+    if (localDarpanId && (clean === localDarpanId || remoteId === ('darpan-' + localDarpanId))) {
+        alert('You cannot call your own Darpan Number!');
         return;
     }
 
-    const targetSignalingId = clean.length >= 10 ? ('darpan-' + clean) : (remoteId.startsWith('darpan-') ? remoteId : ('darpan-' + remoteId));
+    const targetSignalingId = clean.length >= 1 ? ('darpan-' + clean) : (remoteId.startsWith('darpan-') ? remoteId : ('darpan-' + remoteId));
     remotePeerId = targetSignalingId;
     isIntentionalDisconnect = false;
 
@@ -1618,7 +1590,7 @@ function initiateCall(remoteId: string): void {
         const call = peer.call(targetSignalingId, localStream, {
             metadata: {
                 sessionId: activeEphemeralSessionId,
-                callerId: myPermanent10DigitId
+                callerId: localDarpanId
             }
         });
         if (!call) throw new Error("PeerJS failed to create the call object.");
@@ -1640,15 +1612,15 @@ function handleIncomingCall(call: MediaConnection): void {
         try {
             call.close();
         } catch (e) {}
-        const callerClean = clean10DigitId(call.peer);
-        showToast(`Call from ${format10DigitId(callerClean)} rejected (Session busy)`, 'warning');
+        const callerClean = cleanDarpanId(call.peer);
+        showToast(`Call from ${formatDarpanId(callerClean)} rejected (Session busy)`, 'warning');
         return;
     }
 
     try {
         remotePeerId = call.peer;
-        const caller10Digit = clean10DigitId(call.peer);
-        if (remoteIdInput) remoteIdInput.value = format10DigitId(caller10Digit);
+        const callerId = cleanDarpanId(call.peer);
+        if (remoteIdInput) remoteIdInput.value = formatDarpanId(callerId);
         
         // Ephemeral session binding
         if (call.metadata && call.metadata.sessionId) {
@@ -1659,7 +1631,7 @@ function handleIncomingCall(call: MediaConnection): void {
                 : Math.random().toString(36).substring(2);
         }
 
-        showToast(`Incoming call from: ${format10DigitId(caller10Digit)}`, 'info');
+        showToast(`Incoming call from: ${formatDarpanId(callerId)}`, 'info');
         isIntentionalDisconnect = false;
         if (localStream) call.answer(localStream);
         setupCallEvents(call);
@@ -1840,8 +1812,8 @@ function updateCallUIState(inCall: boolean): void {
         if (dockInCallTools) dockInCallTools.classList.remove('hidden');
         
         if (callParticipant) {
-            const clean = clean10DigitId(remotePeerId);
-            const idToDisplay = clean.length >= 10 ? format10DigitId(clean) : (remotePeerId ? (remotePeerId.substring(0, 12) + '...') : 'Remote Peer');
+            const clean = cleanDarpanId(remotePeerId);
+            const idToDisplay = clean.length >= 1 ? formatDarpanId(clean) : (remotePeerId ? (remotePeerId.substring(0, 12) + '...') : 'Remote Peer');
             callParticipant.textContent = idToDisplay;
         }
 

@@ -104,28 +104,28 @@ declare let remoteAnalyserNode: AnalyserNode | null;
 declare let speechDetectionInterval: ReturnType<typeof setInterval> | null;
 declare let dataConnection: DataConnection | null;
 declare let isIntentionalDisconnect: boolean;
-declare let myPermanent10DigitId: string;
+declare let localDarpanId: string;
 declare let activeEphemeralSessionId: string | null;
 /**
- * Generates a cryptographically secure 32-digit decimal identifier.
- * Space: 10^32 combinations (~106 bits entropy).
- * Birthday Paradox collision probability across 10 billion humans: P < 5e-13 (1 in 2 trillion).
+ * Generates a cryptographically secure 20-character Base36 identifier.
+ * Alphabet: 0-9 A-Z (case-insensitive). Space: 36^20 ≈ 1.33×10^31 combinations (~104 bits entropy).
+ * Birthday Paradox collision probability across 10 billion humans: P < 3.8×10^-12 (1 in 260 billion).
  */
-declare function generateSecure32DigitId(): string;
+declare function generateSecureBase36Id(): string;
 /**
- * Retrieves the user's permanent identifier from sessionStorage/localStorage,
- * or cryptographically generates a fresh 32-digit number and persists it.
+ * Retrieves the user's permanent Darpan identifier from sessionStorage/localStorage,
+ * or cryptographically generates a fresh Base36 ID and persists it.
  */
 declare function getOrCreatePermanentId(): string;
 /**
- * Formats a numeric identifier into clean 4-digit groups (XXXX-XXXX-XXXX-...).
- * Supports 10-digit legacy phone-style format (XXX-XXX-XXXX) and 32-digit format.
+ * Formats a Base36 string into clean 4-character groups (XXXX-XXXX-XXXX-XXXX-XXXX).
+ * Output is always uppercase. Input may contain dashes or mixed case.
  */
-declare function format10DigitId(id: string): string;
+declare function formatDarpanId(id: string): string;
 /**
- * Strips formatting, prefixes, and non-numeric characters to extract the raw digits.
+ * Strips dashes, spaces, and the darpan- prefix; normalizes to uppercase Base36.
  */
-declare function clean10DigitId(input: string): string;
+declare function cleanDarpanId(input: string): string;
 declare let qualityChangeQueue: Promise<void>;
 declare const QUALITY_PRESETS: Record<QualityLevel, QualityPreset>;
 declare const localVideo: HTMLVideoElement;

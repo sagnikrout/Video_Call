@@ -1,7 +1,7 @@
 {
-  "name": "video_call",
-  "version": "1.0.0",
-  "description": "A client-side Peer-to-Peer video calling web application built with HTML5, CSS3, Vanilla JavaScript, WebRTC, and PeerJS.",
+  "name": "darpan",
+  "version": "2.0.0",
+  "description": "Darpan — Zero-infrastructure, purely peer-to-peer WebRTC video calling engine. Built on a √2:1 monochromatic Surreal WebGL renderer, 20-char Base36 cryptographic addressing (36^20 ≈ 1.33×10^31 space), and strict exclusive 2-party DTLS/SRTP tunneling.",
   "main": "app.js",
   "scripts": {
     "build": "tsc",
@@ -13,7 +13,7 @@
     "type": "git",
     "url": "git+https://github.com/sagnikrout/Video_Call.git"
   },
-  "keywords": [],
+  "keywords": ["webrtc", "video-call", "peer-to-peer", "monochrome", "av1", "webgl", "surreal", "p2p", "typescript", "base36", "darpan"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
