@@ -29,17 +29,18 @@ let speechDetectionInterval = null;
 // Companion Data Connection & Disconnect Synchronization
 let dataConnection = null;
 let isIntentionalDisconnect = false;
-// Permanent Cryptographic Darpan Identifier (Base36, 20-char: 36^20 ≈ 1.33×10^31 combinations) & Ephemeral Session State
+// Permanent Cryptographic Darpan Identifier (Base36, 16-char: 36^16 ≈ 7.96×10^24 combinations) & Ephemeral Session State
 let localDarpanId = '';
 let activeEphemeralSessionId = null;
 /**
- * Generates a cryptographically secure 20-character Base36 identifier.
- * Alphabet: 0-9 A-Z (case-insensitive). Space: 36^20 ≈ 1.33×10^31 combinations (~104 bits entropy).
- * Birthday Paradox collision probability across 10 billion humans: P < 3.8×10^-12 (1 in 260 billion).
+ * Generates a cryptographically secure 16-character Base36 identifier.
+ * Alphabet: 0-9 A-Z (case-insensitive). Space: 36^16 ≈ 7.96×10^24 combinations (~83 bits entropy).
+ * Format: XXXX-XXXX-XXXX-XXXX — 4 groups of 4, matching the universal credit-card mental model.
+ * Birthday Paradox collision probability across 10 billion humans: P < 6.3×10^-6 (1 in 160,000).
  */
 function generateSecureBase36Id() {
     const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const array = new Uint8Array(20);
+    const array = new Uint8Array(16);
     crypto.getRandomValues(array);
     return Array.from(array).map(b => CHARS[b % 36]).join('');
 }
@@ -50,7 +51,7 @@ function generateSecureBase36Id() {
 function getOrCreatePermanentId() {
     try {
         const sessionStored = sessionStorage.getItem('darpan_permanent_id');
-        if (sessionStored && /^[0-9A-Z]{20}$/i.test(sessionStored)) {
+        if (sessionStored && /^[0-9A-Z]{16}$/i.test(sessionStored)) {
             return sessionStored.toUpperCase();
         }
         const freshId = generateSecureBase36Id();

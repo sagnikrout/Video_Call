@@ -1,7 +1,7 @@
 {
   "name": "darpan",
   "version": "2.0.0",
-  "description": "Darpan — Zero-infrastructure, purely peer-to-peer WebRTC video calling engine. Built on a √2:1 monochromatic Surreal WebGL renderer, 20-char Base36 cryptographic addressing (36^20 ≈ 1.33×10^31 space), and strict exclusive 2-party DTLS/SRTP tunneling.",
+  "description": "Darpan — Zero-infrastructure, purely peer-to-peer WebRTC video calling engine. Built on a √2:1 monochromatic Surreal WebGL renderer, 16-char Base36 cryptographic addressing (36^16 ≈ 7.96×10^24 space), and strict exclusive 2-party DTLS/SRTP tunneling.",
   "main": "app.js",
   "scripts": {
     "build": "tsc",

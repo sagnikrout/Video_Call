@@ -107,9 +107,10 @@ declare let isIntentionalDisconnect: boolean;
 declare let localDarpanId: string;
 declare let activeEphemeralSessionId: string | null;
 /**
- * Generates a cryptographically secure 20-character Base36 identifier.
- * Alphabet: 0-9 A-Z (case-insensitive). Space: 36^20 ≈ 1.33×10^31 combinations (~104 bits entropy).
- * Birthday Paradox collision probability across 10 billion humans: P < 3.8×10^-12 (1 in 260 billion).
+ * Generates a cryptographically secure 16-character Base36 identifier.
+ * Alphabet: 0-9 A-Z (case-insensitive). Space: 36^16 ≈ 7.96×10^24 combinations (~83 bits entropy).
+ * Format: XXXX-XXXX-XXXX-XXXX — 4 groups of 4, matching the universal credit-card mental model.
+ * Birthday Paradox collision probability across 10 billion humans: P < 6.3×10^-6 (1 in 160,000).
  */
 declare function generateSecureBase36Id(): string;
 /**

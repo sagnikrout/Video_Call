@@ -20,21 +20,23 @@ Darpan is a browser-native, two-person video call engine with no servers, no acc
 
 ## Darpan Number — Cryptographic Identity
 
-Every session is assigned a **permanent Darpan Number**: a 20-character Base36 string (digits `0-9` and letters `A-Z`, case-insensitive), displayed in groups of four:
+Every session is assigned a **permanent Darpan Number**: a 16-character Base36 string (digits `0-9` and letters `A-Z`, case-insensitive), displayed in 4 groups of 4 — the same shape your brain already knows from credit cards:
 
 ```
-7KM2-X4PQ-3RTW-B1YZ-9ACD
+7KM2-X4PQ-3RTW-B1YZ
 ```
 
-### Why Base36 at 20 Characters?
+### Why Base36 at 16 Characters?
 
-The identifier space is $36^{20} \approx 1.33 \times 10^{31}$.
+The identifier space is $36^{16} \approx 7.96 \times 10^{24}$.
 
 By the **Birthday Paradox**, the probability that any two of the $N \approx 10^{10}$ humans on Earth share a Darpan Number is:
 
-$$P \approx \frac{N^2}{2 \cdot 36^{20}} \approx \frac{(10^{10})^2}{2 \times 1.33 \times 10^{31}} \approx 3.8 \times 10^{-12}$$
+$$P \approx \frac{N^2}{2 \cdot 36^{16}} \approx \frac{(10^{10})^2}{2 \times 7.96 \times 10^{24}} \approx 6.3 \times 10^{-6}$$
 
-That is roughly **1 in 260 billion** — even if every person on Earth used the app simultaneously. The identifier is generated using `crypto.getRandomValues()` — no Math.random(), no timestamp entropy, no seeding.
+That is roughly **1 in 160,000** — even if every person on Earth used the app simultaneously. For any realistic user base (thousands to millions), the collision probability is effectively zero. The 4×4 grouping matches the universal credit-card mental model: the chunk length proven by decades of human-factors research to be the maximum a person can hold in working memory and verify without error.
+
+The identifier is generated using `crypto.getRandomValues()` — no Math.random(), no timestamp entropy, no seeding.
 
 Behind the Darpan Number, each individual call session also carries a **one-time ephemeral UUID** (`crypto.randomUUID()`) that is exchanged during the DTLS handshake via a companion DataConnection. This nonce governs session binding and is discarded when the call ends. The Darpan Number itself is your persistent address; the nonce is the envelope it was delivered in.
 

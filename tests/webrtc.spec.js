@@ -9,6 +9,7 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await p2.goto('/');
 
     await expect(p1.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 15000 });
+    await expect(p2.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 15000 });
     const id1 = await p1.locator('#my-id-display').textContent();
 
     await p2.click('#info-btn');
@@ -131,9 +132,9 @@ test.describe('WebRTC Application Edge Cases & Diagnostics', () => {
     await expect(page.locator('#my-id-display')).not.toHaveText('Generating...', { timeout: 10000 });
     const idFirst = await page.locator('#my-id-display').textContent();
     
-    // Verify 20-char Base36 format in 5 groups of 4 (XXXX-XXXX-XXXX-XXXX-XXXX), case-insensitive
-    expect(idFirst.replace(/[^A-Z0-9]/gi, '').length).toBe(20);
-    expect(idFirst).toMatch(/^([0-9A-Z]{4}-){4}[0-9A-Z]{4}$/i);
+    // Verify 16-char Base36 format in 4 groups of 4 (XXXX-XXXX-XXXX-XXXX), case-insensitive
+    expect(idFirst.replace(/[^A-Z0-9]/gi, '').length).toBe(16);
+    expect(idFirst).toMatch(/^([0-9A-Z]{4}-){3}[0-9A-Z]{4}$/i);
 
     // Verify storage persistence across page reloads
     await page.reload();
